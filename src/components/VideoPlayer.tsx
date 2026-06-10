@@ -11,7 +11,7 @@ interface Props {
   title?: string;
   /** Percentual salvo (0–100) para retomar a reprodução */
   initialPercent?: number;
-  /** Esconde capa de pause (ex.: contagem para próxima aula) */
+  /** Esconde capa de pause sobre o vídeo */
   hidePauseOverlay?: boolean;
   onProgress?: (percent: number) => void;
   onEnded?: () => void;

@@ -4,6 +4,7 @@ import {
   collapseLegacySplitLicensesFromSamePurchase,
   filterLicensesForValidation,
 } from '../lib/licenseProductMatch.js';
+import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
 import { fireLicenseExpiryUpdatedNotify } from '../lib/licenseAdminNotification.js';
 import { log } from '../lib/logger.js';
 
@@ -227,6 +228,17 @@ export async function validateLicenseHandler(
       cacheSet(cacheKey, denial.status, denial.json);
       logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
       return denial;
+    }
+
+    const desafioDenial = await assertDesafioAccountAllowed(prisma, license, numero_conta, products);
+    if (!desafioDenial.ok) {
+      const result = {
+        status: 403,
+        json: { status: 'error', message: desafioDenial.message },
+      };
+      cacheSet(cacheKey, result.status, result.json);
+      logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+      return result;
     }
   }
 

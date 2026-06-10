@@ -5,6 +5,7 @@ import { validateLicenseHandler } from '../forex/licenseService.js';
 import { invalidateLicenseCacheForEmail } from '../lib/licenseValidationCache.js';
 import { checkRateLimit } from '../lib/rateLimitMem.js';
 import { resolveOwnedProductIds, resolveOwnedSystemIds, resolveProductForLicense } from '../lib/licenseProductMatch.js';
+import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
 
 export function registerMemberApiRoutes(app: express.Application, prisma: PrismaClient) {
   app.get('/api/me/licenses', async (req, res) => {
@@ -69,6 +70,13 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
       where: { id, email: user.email.toLowerCase() }
     });
     if (!lic) return res.status(404).json({ error: 'License not found' });
+
+    const products = await prisma.product.findMany();
+    const desafioCheck = await assertDesafioAccountAllowed(prisma, lic, numeroConta, products);
+    if (!desafioCheck.ok) {
+      return res.status(400).json({ error: desafioCheck.message });
+    }
+
     await prisma.license.update({ where: { id }, data: { numeroConta } });
     invalidateLicenseCacheForEmail(user.email);
     res.json({ success: true });

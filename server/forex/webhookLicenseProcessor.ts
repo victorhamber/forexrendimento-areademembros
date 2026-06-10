@@ -5,6 +5,7 @@ import { grantContentAccessForSystem, revokeContentAccessForSystem } from './lic
 import { postRobotJson } from './robotNotify.js';
 import { normalizeCsv, parseCsv } from '../lib/csv.js';
 import { findProductByOfferCodeInList } from '../lib/licenseProductMatch.js';
+import { findDesafioLicenseForUpgrade, isPaidUpgradePlan } from '../lib/desafioLicenseRules.js';
 import { sendWelcomeEmail } from '../lib/welcomeEmail.js';
 import {
   fireLicenseCreatedNotify,
@@ -203,6 +204,7 @@ async function activateLicense(
   // --- 1) Uma licença por compra (todos os system_id do produto ficam no CSV da licença) ---
   if (hasProduct) {
     const licenseEventId = event_id;
+    const catalogProducts = await prisma.product.findMany();
 
     let existing = await prisma.license.findUnique({ where: { eventId: licenseEventId } });
     if (!existing) {
@@ -228,13 +230,31 @@ async function activateLicense(
       });
     }
 
+    let isDesafioUpgrade = false;
+    if (!existing && mode === 'create' && product && isPaidUpgradePlan(plano)) {
+      const allForEmail = await prisma.license.findMany({
+        where: { email },
+        orderBy: { id: 'asc' },
+      });
+      const toUpgrade = findDesafioLicenseForUpgrade(allForEmail, product, catalogProducts);
+      if (toUpgrade) {
+        existing = toUpgrade;
+        isDesafioUpgrade = true;
+        log(
+          'INFO',
+          `Upgrade Desafio→${plano}: licença #${toUpgrade.id} será atualizada para ${email} (event=${event_id})`
+        );
+      }
+    }
+
     if (!existing && mode === 'renew') {
       log(
         'WARN',
         `Renovação sem licença encontrada ${email} subscriber=${subscriber_code || '—'} sys=${licenseSystemId || '—'} event=${event_id}`
       );
     } else {
-      const shouldStartNow = !!(existing?.dataAtivacao && existing?.dataExpiracao);
+      const shouldStartNow =
+        !isDesafioUpgrade && !!(existing?.dataAtivacao && existing?.dataExpiracao);
       const baseForExpiry =
         existing?.dataExpiracao && existing.dataExpiracao > now ? existing.dataExpiracao : now;
       const licensePayload = {
@@ -252,7 +272,8 @@ async function activateLicense(
       if (existing) {
         const previousDataExpiracao = existing.dataExpiracao;
         const update: typeof licensePayload & { eventId?: string } = { ...licensePayload };
-        const keepOriginalEventId = mode === 'renew' && !!existing.subscriberCode && !!subscriber_code;
+        const keepOriginalEventId =
+          !isDesafioUpgrade && mode === 'renew' && !!existing.subscriberCode && !!subscriber_code;
         if (!keepOriginalEventId && existing.eventId !== licenseEventId) {
           const conflict = await prisma.license.findFirst({
             where: { eventId: licenseEventId, NOT: { id: existing.id } },
@@ -262,9 +283,14 @@ async function activateLicense(
         const updated = await prisma.license.update({ where: { id: existing.id }, data: update });
         fireLicenseExpiryUpdatedNotify(prisma, updated, previousDataExpiracao, 'webhook');
         invalidateLicenseCacheForEmail(email);
+        const actionLabel = isDesafioUpgrade
+          ? 'atualizada (upgrade Desafio)'
+          : mode === 'renew'
+            ? 'renovada'
+            : 'reatualizada (idempotência)';
         log(
           'INFO',
-          `Licença ${existing.id} ${mode === 'renew' ? 'renovada' : 'reatualizada (idempotência)'} ${email} sys=${licenseSystemId} offer=${resolvedOfferCode} plano=${plano} produto=${product?.productName || '—'}`
+          `Licença ${existing.id} ${actionLabel} ${email} sys=${licenseSystemId} offer=${resolvedOfferCode} plano=${plano} produto=${product?.productName || '—'}`
         );
       } else {
         try {

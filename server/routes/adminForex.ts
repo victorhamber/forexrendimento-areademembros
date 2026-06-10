@@ -7,6 +7,11 @@ import {
 } from '../lib/licenseAdminNotification.js';
 import { repairLicensesByOfferCode } from '../lib/repairLicensesByOfferCode.js';
 import { exportDatabaseJson } from '../lib/databaseBackup.js';
+import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
+import {
+  findDesafioLicenseForUpgrade,
+  isPaidUpgradePlan,
+} from '../lib/desafioLicenseRules.js';
 
 function addDurationByPlanFrom(planoRaw: string | null | undefined, base: Date): Date {
   const plano = String(planoRaw || 'mensal').toLowerCase().trim();
@@ -53,22 +58,70 @@ export function registerAdminForexRoutes(
     const b = req.body as Record<string, unknown>;
     const eventId = String(b.eventId || `manual_${Date.now()}`);
     const plano = String(b.plano || 'mensal');
+    const email = String(b.email || '').toLowerCase().trim();
+    const numeroConta = String(b.numeroConta ?? '').trim();
     try {
+      const products = await prisma.product.findMany();
+      const systemId = String(b.systemId || '');
+
+      if (numeroConta) {
+        const desafioCheck = await assertDesafioAccountAllowed(
+          prisma,
+          { id: 0, plano, systemId, offerCode: b.offerCode != null ? String(b.offerCode) : null },
+          numeroConta,
+          products
+        );
+        if (!desafioCheck.ok) return res.status(400).json({ error: desafioCheck.message });
+      }
+
+      let upgradeTarget = null;
+      if (isPaidUpgradePlan(plano) && systemId) {
+        const productMatch = products.find(
+          (p) =>
+            String(p.systemId || '').includes(systemId.split(',')[0]?.trim() || systemId) &&
+            String(p.plano || '').toLowerCase() === plano.toLowerCase()
+        );
+        if (productMatch) {
+          const allForEmail = await prisma.license.findMany({ where: { email }, orderBy: { id: 'asc' } });
+          upgradeTarget = findDesafioLicenseForUpgrade(allForEmail, productMatch, products);
+        }
+      }
+
+      if (upgradeTarget) {
+        const lic = await prisma.license.update({
+          where: { id: upgradeTarget.id },
+          data: {
+            buyerName: b.buyerName != null ? String(b.buyerName) : undefined,
+            numeroConta: numeroConta || undefined,
+            plano,
+            statusLicenca: String(b.statusLicenca || 'ativa'),
+            dataExpiracao: null,
+            dataAtivacao: null,
+            systemId,
+            offerCode: b.offerCode != null ? String(b.offerCode).trim() || null : undefined,
+            subscriberCode: b.subscriberCode != null ? String(b.subscriberCode) : undefined,
+            eventId,
+          },
+        });
+        invalidateLicenseCacheForEmail(lic.email);
+        fireLicenseExpiryUpdatedNotify(prisma, lic, upgradeTarget.dataExpiracao, 'admin');
+        return res.json(lic);
+      }
+
       const lic = await prisma.license.create({
         data: {
-          email: String(b.email || '').toLowerCase().trim(),
+          email,
           buyerName: b.buyerName != null ? String(b.buyerName) : null,
-          numeroConta: String(b.numeroConta ?? ''),
+          numeroConta,
           eventId,
           plano,
           statusLicenca: String(b.statusLicenca || 'ativa'),
-          // A contagem começa no primeiro bind do EA (validação).
           dataExpiracao: null,
-          systemId: String(b.systemId || ''),
+          systemId,
           offerCode: b.offerCode != null ? String(b.offerCode).trim() || null : null,
           subscriberCode: b.subscriberCode != null ? String(b.subscriberCode) : null,
-          dataAtivacao: null
-        }
+          dataAtivacao: null,
+        },
       });
       invalidateLicenseCacheForEmail(lic.email);
       fireLicenseCreatedNotify(prisma, lic, 'admin');
@@ -103,6 +156,31 @@ export function registerAdminForexRoutes(
       }
 
       const previousDataExpiracao = current.dataExpiracao;
+
+      const nextPlano = b.plano != null ? String(b.plano) : current.plano;
+      const nextNumeroConta =
+        b.numeroConta !== undefined ? String(b.numeroConta).trim() : String(current.numeroConta || '').trim();
+      if (nextNumeroConta) {
+        const products = await prisma.product.findMany();
+        const desafioCheck = await assertDesafioAccountAllowed(
+          prisma,
+          {
+            id: current.id,
+            plano: nextPlano,
+            systemId: b.systemId != null ? String(b.systemId) : current.systemId,
+            offerCode:
+              b.offerCode !== undefined
+                ? b.offerCode
+                  ? String(b.offerCode)
+                  : null
+                : current.offerCode,
+          },
+          nextNumeroConta,
+          products
+        );
+        if (!desafioCheck.ok) return res.status(400).json({ error: desafioCheck.message });
+      }
+
       const lic = await prisma.license.update({
         where: { id },
         data: {

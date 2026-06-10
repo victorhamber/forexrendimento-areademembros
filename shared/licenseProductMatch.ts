@@ -112,13 +112,6 @@ export function equivalentSystemIds(systemId: string): string[] {
   return [sid];
 }
 
-/** systemId da licença pode ser um único id ou CSV (como no cadastro do admin). */
-function licenseSystemIdsMatchGroup(lic: LicenseLite, group: string[]): boolean {
-  const licIds = parseCsv(String(lic.systemId || ''));
-  if (!licIds.length) return true;
-  return licIds.some((id) => group.includes(id));
-}
-
 function productsForSystemIdGroup<T extends ProductLite>(products: T[], systemId: string): T[] {
   const seen = new Set<number>();
   const out: T[] = [];
@@ -141,7 +134,7 @@ export function productsForSystemId<T extends ProductLite>(products: T[], system
 function licenseSharesSystemWithProduct(lic: LicenseLite, product: ProductLite): boolean {
   const licIds = parseCsv(String(lic.systemId || ''));
   const prodIds = parseCsv(String(product.systemId || ''));
-  if (!licIds.length || !prodIds.length) return true;
+  if (!licIds.length || !prodIds.length) return false;
   for (const id of licIds) {
     const group = equivalentSystemIds(id);
     if (prodIds.some((pid) => group.includes(pid))) return true;
@@ -149,7 +142,18 @@ function licenseSharesSystemWithProduct(lic: LicenseLite, product: ProductLite):
   return false;
 }
 
-/** Licença pertence ao produto via código da oferta (prioridade) ou plano + systemId. */
+/** Licença tem algum systemId (ou alias) presente no grupo pedido pelo EA. */
+export function licenseMatchesSystemGroup(lic: LicenseLite, group: string[]): boolean {
+  const licIds = parseCsv(String(lic.systemId || ''));
+  if (!licIds.length) return false;
+  for (const id of licIds) {
+    const idGroup = equivalentSystemIds(id);
+    if (idGroup.some((x) => group.includes(x))) return true;
+  }
+  return false;
+}
+
+/** Licença pertence ao produto via código da oferta (prioridade) ou plano (+ systemId quando houver). */
 export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): boolean {
   const offer = String(lic.offerCode || '').trim();
   if (offer) {
@@ -158,12 +162,15 @@ export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): b
   const licPlan = norm(lic.plano);
   const prodPlan = norm(product.plano);
   if (!licPlan || !prodPlan || licPlan !== prodPlan) return false;
+  const licIds = parseCsv(String(lic.systemId || ''));
+  if (!licIds.length) return true;
   return licenseSharesSystemWithProduct(lic, product);
 }
 
 /**
  * Licenças elegíveis na validação do EA.
- * Aceita o system_id solicitado e IDs equivalentes (ex.: 516247 ↔ 5162473).
+ * Com systemId na licença: só entra se intersectar o pedido (ex.: 516247 ↔ 5162473).
+ * Sem systemId (legado): casa por oferta/plano nos produtos do system_id pedido.
  */
 export function filterLicensesForValidation<T extends LicenseLite>(
   licenses: T[],
@@ -176,14 +183,16 @@ export function filterLicensesForValidation<T extends LicenseLite>(
   const group = equivalentSystemIds(sid);
   const systemProducts = productsForSystemIdGroup(products, sid);
 
-  if (!systemProducts.length) {
-    return licenses.filter((lic) => licenseSystemIdsMatchGroup(lic, group));
-  }
-
   return licenses.filter((lic) => {
-    // Um produto pode ter vários system_id (CSV); a licença vale para todos via oferta/plano.
-    if (systemProducts.some((p) => licenseMatchesProduct(lic, p))) return true;
-    return licenseSystemIdsMatchGroup(lic, group);
+    const licIds = parseCsv(String(lic.systemId || ''));
+
+    if (licIds.length > 0) {
+      return licenseMatchesSystemGroup(lic, group);
+    }
+
+    if (!systemProducts.length) return false;
+
+    return systemProducts.some((p) => licenseMatchesProduct(lic, p));
   });
 }
 

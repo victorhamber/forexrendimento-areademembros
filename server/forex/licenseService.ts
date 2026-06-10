@@ -195,13 +195,16 @@ export async function validateLicenseHandler(
     const eligible = collapseLegacySplitLicensesFromSamePurchase(
       filterLicensesForValidation(allForEmail, products, system_id)
     );
-    const picked = pickLicenseFromCandidates(eligible as License[], numero_conta);
+    const forAccount = eligible.filter(
+      (l) => String(l.numeroConta || '').trim() === numero_conta
+    );
+    const picked =
+      pickLicenseFromCandidates(eligible as License[], numero_conta) ??
+      (forAccount.length === 1 ? (forAccount[0] as License) : null);
 
     if (picked) {
       license = picked;
-    } else if (
-      eligible.filter((l) => String(l.numeroConta || '').trim() === numero_conta).length > 1
-    ) {
+    } else if (forAccount.length > 1) {
       const result = {
         status: 400,
         json: {

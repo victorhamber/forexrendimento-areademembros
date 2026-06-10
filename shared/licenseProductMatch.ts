@@ -111,6 +111,13 @@ export function equivalentSystemIds(systemId: string): string[] {
   return [sid];
 }
 
+/** systemId da licença pode ser um único id ou CSV (como no cadastro do admin). */
+function licenseSystemIdsMatchGroup(lic: LicenseLite, group: string[]): boolean {
+  const licIds = parseCsv(String(lic.systemId || ''));
+  if (!licIds.length) return true;
+  return licIds.some((id) => group.includes(id));
+}
+
 function productsForSystemIdGroup<T extends ProductLite>(products: T[], systemId: string): T[] {
   const seen = new Set<number>();
   const out: T[] = [];
@@ -157,15 +164,11 @@ export function filterLicensesForValidation<T extends LicenseLite>(
   const systemProducts = productsForSystemIdGroup(products, sid);
 
   if (!systemProducts.length) {
-    return licenses.filter((lic) => {
-      const licSid = String(lic.systemId || '').trim();
-      return licSid && group.includes(licSid);
-    });
+    return licenses.filter((lic) => licenseSystemIdsMatchGroup(lic, group));
   }
 
   return licenses.filter((lic) => {
-    const licSid = String(lic.systemId || '').trim();
-    if (licSid && !group.includes(licSid)) return false;
+    if (!licenseSystemIdsMatchGroup(lic, group)) return false;
     return systemProducts.some((p) => licenseMatchesProduct(lic, p));
   });
 }

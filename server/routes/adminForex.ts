@@ -70,6 +70,7 @@ export function registerAdminForexRoutes(
           dataAtivacao: null
         }
       });
+      invalidateLicenseCacheForEmail(lic.email);
       fireLicenseCreatedNotify(prisma, lic, 'admin');
       res.json(lic);
     } catch (e) {

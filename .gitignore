@@ -23,10 +23,6 @@ prisma/dev.db-journal
 # Exportações temporárias de migração
 tmp/sqlite-export.json
 
-# Backups locais do banco (não versionar)
-backups/*
-!backups/.gitkeep
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

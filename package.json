@@ -27,8 +27,6 @@
     "db:fix:license-products:dry": "node scripts/fix-license-products-by-plan.mjs --dry-run",
     "db:fix:licenses-by-offer": "node scripts/fix-licenses-by-offer-code.mjs",
     "db:fix:licenses-by-offer:dry": "node scripts/fix-licenses-by-offer-code.mjs --dry-run",
-    "db:backup": "node scripts/backup-postgres.mjs",
-    "db:restore": "node scripts/restore-postgres.mjs",
     "db:resync:wp-passwords": "node scripts/resync-wp-passwords.mjs",
     "db:resync:wp-passwords:dry": "node scripts/resync-wp-passwords.mjs --dry-run",
     "dev:api": "tsx server/index.ts",

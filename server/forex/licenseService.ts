@@ -191,10 +191,8 @@ export async function validateLicenseHandler(
   }
 
   if (!license) {
-    const forSystem = collapseLegacySplitLicensesFromSamePurchase(
-      filterLicensesForValidation(allForEmail, products, system_id)
-    );
-    const withAccount = forSystem.filter(
+    const eligible = filterLicensesForValidation(allForEmail, products, system_id);
+    const withAccount = eligible.filter(
       (l) => String(l.numeroConta || '').trim() === numero_conta
     );
 
@@ -213,6 +211,7 @@ export async function validateLicenseHandler(
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
+      const forSystem = collapseLegacySplitLicensesFromSamePurchase(eligible);
       const denial = resolveLicenseDenial(forSystem as License[], numero_conta);
       if (denial) {
         cacheSet(cacheKey, denial.status, denial.json);

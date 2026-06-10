@@ -186,12 +186,24 @@ function preferLicenseCandidate<T extends LicenseLite & { id?: number; numeroCon
   return (next.id ?? 0) > (prev.id ?? 0) ? next : prev;
 }
 
+/** Sufixos do webhook legado (1 transação → N licenças). Não usar \\d+ genérico — evita colapsar compras distintas. */
+const LEGACY_EVENT_ID_SUFFIXES = ['5162473', '516247', 'test'];
+
+function legacyEventIdSuffix(eventId: string): string | null {
+  for (const suffix of LEGACY_EVENT_ID_SUFFIXES) {
+    if (eventId.endsWith(`_${suffix}`)) return suffix;
+  }
+  return null;
+}
+
 /** Webhook antigo gerava eventId com sufixo _systemId na mesma transação Hotmart. */
 export function rootPurchaseEventId(eventId: string | null | undefined): string {
   const e = String(eventId || '').trim();
   if (!e) return '';
-  const m = e.match(/^(.+)_(5162473|516247|test|\d+)$/);
-  return m ? m[1] : e;
+  const suffix = legacyEventIdSuffix(e);
+  if (!suffix) return e;
+  const root = e.slice(0, -(suffix.length + 1));
+  return root || e;
 }
 
 /**
@@ -215,9 +227,19 @@ export function collapseLegacySplitLicensesFromSamePurchase<
       out.push(group[0]);
       continue;
     }
+    const distinctAccounts = new Set(
+      group.map((l) => String(l.numeroConta || '').trim()).filter(Boolean)
+    );
+    if (distinctAccounts.size > 1) {
+      out.push(...group);
+      continue;
+    }
+
     const root = rootPurchaseEventId(group[0].eventId);
-    const hasLegacySplit =
-      !!root && group.some((l) => String(l.eventId || '').trim() !== root);
+    const hasLegacySplit = group.some((l) => {
+      const eid = String(l.eventId || '').trim();
+      return !!legacyEventIdSuffix(eid) && eid !== root;
+    });
     if (!hasLegacySplit) {
       out.push(...group);
       continue;

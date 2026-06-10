@@ -3,6 +3,7 @@ import { cacheGet, cacheSet, invalidateLicenseCacheForEmail } from '../lib/licen
 import {
   collapseLegacySplitLicensesFromSamePurchase,
   filterLicensesForValidation,
+  pickLicenseFromCandidates,
 } from '../lib/licenseProductMatch.js';
 import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
 import { fireLicenseExpiryUpdatedNotify } from '../lib/licenseAdminNotification.js';
@@ -191,14 +192,16 @@ export async function validateLicenseHandler(
   }
 
   if (!license) {
-    const eligible = filterLicensesForValidation(allForEmail, products, system_id);
-    const withAccount = eligible.filter(
-      (l) => String(l.numeroConta || '').trim() === numero_conta
+    const eligible = collapseLegacySplitLicensesFromSamePurchase(
+      filterLicensesForValidation(allForEmail, products, system_id)
     );
+    const picked = pickLicenseFromCandidates(eligible as License[], numero_conta);
 
-    if (withAccount.length === 1) {
-      license = withAccount[0] as License;
-    } else if (withAccount.length > 1) {
+    if (picked) {
+      license = picked;
+    } else if (
+      eligible.filter((l) => String(l.numeroConta || '').trim() === numero_conta).length > 1
+    ) {
       const result = {
         status: 400,
         json: {
@@ -211,8 +214,7 @@ export async function validateLicenseHandler(
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
-      const forSystem = collapseLegacySplitLicensesFromSamePurchase(eligible);
-      const denial = resolveLicenseDenial(forSystem as License[], numero_conta);
+      const denial = resolveLicenseDenial(eligible as License[], numero_conta);
       if (denial) {
         cacheSet(cacheKey, denial.status, denial.json);
         logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);

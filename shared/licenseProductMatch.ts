@@ -138,7 +138,18 @@ export function productsForSystemId<T extends ProductLite>(products: T[], system
   return productsForSystemIdGroup(products, String(systemId || '').trim()) as T[];
 }
 
-/** Licença pertence ao produto via código da oferta (prioridade) ou plano cadastrado. */
+function licenseSharesSystemWithProduct(lic: LicenseLite, product: ProductLite): boolean {
+  const licIds = parseCsv(String(lic.systemId || ''));
+  const prodIds = parseCsv(String(product.systemId || ''));
+  if (!licIds.length || !prodIds.length) return true;
+  for (const id of licIds) {
+    const group = equivalentSystemIds(id);
+    if (prodIds.some((pid) => group.includes(pid))) return true;
+  }
+  return false;
+}
+
+/** Licença pertence ao produto via código da oferta (prioridade) ou plano + systemId. */
 export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): boolean {
   const offer = String(lic.offerCode || '').trim();
   if (offer) {
@@ -146,7 +157,8 @@ export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): b
   }
   const licPlan = norm(lic.plano);
   const prodPlan = norm(product.plano);
-  return !!(licPlan && prodPlan && licPlan === prodPlan);
+  if (!licPlan || !prodPlan || licPlan !== prodPlan) return false;
+  return licenseSharesSystemWithProduct(lic, product);
 }
 
 /**
@@ -259,6 +271,11 @@ export function pickLicenseFromCandidates<T extends LicenseLite & { numeroConta?
 
   const matched = candidates.filter((c) => String(c.numeroConta || '').trim() === account);
   if (matched.length === 1) return matched[0];
+  if (matched.length > 1) {
+    const collapsed = collapseLegacySplitLicensesFromSamePurchase(matched);
+    const narrowed = collapsed.filter((c) => String(c.numeroConta || '').trim() === account);
+    if (narrowed.length === 1) return narrowed[0];
+  }
   return null;
 }
 

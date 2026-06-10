@@ -319,7 +319,6 @@ export const Admin: React.FC = () => {
   });
   const [editingLicenseId, setEditingLicenseId] = useState<number | null>(null);
   const [licenseModalBusy, setLicenseModalBusy] = useState(false);
-  const [repairingLicenses, setRepairingLicenses] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userPlanFilter, setUserPlanFilter] = useState('todos');
   const [userStatusFilter, setUserStatusFilter] = useState('todos');
@@ -1243,51 +1242,6 @@ export const Admin: React.FC = () => {
       if (res.ok) setLicenses(await res.json());
     } catch {
       console.error('fetchLicenses');
-    }
-  };
-
-  const repairAllLicensesByOffer = async (dryRun: boolean) => {
-    const h = authHeaders();
-    if (!h.Authorization) return;
-    if (
-      !dryRun &&
-      !confirm(
-        'Corrigir plano e systemId de TODAS as licenças com base no código da oferta cadastrado em Produtos? Datas e contas MT5 não serão alteradas.'
-      )
-    ) {
-      return;
-    }
-    setRepairingLicenses(true);
-    try {
-      const res = await fetch('/api/admin/licenses/repair-by-offer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ dryRun }),
-      });
-      const j = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-        updated?: number;
-        unchanged?: number;
-        skippedNoProduct?: number;
-        preview?: unknown[];
-      };
-      if (!res.ok) {
-        alert(j.error || 'Falha ao corrigir licenças.');
-        return;
-      }
-      alert(
-        j.message ||
-          `${dryRun ? 'Simulação' : 'Concluído'}: ${j.updated ?? 0} atualizada(s), ${j.unchanged ?? 0} já ok, ${j.skippedNoProduct ?? 0} sem produto.`
-      );
-      if (!dryRun) {
-        void fetchLicenses();
-        if (managingAccessFor?.email) void fetchClientLicenses(managingAccessFor.email);
-      }
-    } catch {
-      alert('Erro de conexão.');
-    } finally {
-      setRepairingLicenses(false);
     }
   };
 
@@ -3670,27 +3624,7 @@ export const Admin: React.FC = () => {
           </form>
 
           <div className="admin-table-container">
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-                <h3 style={{ margin: 0 }}>Clientes ({filteredUsers.length})</h3>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={repairingLicenses}
-                    onClick={() => void repairAllLicensesByOffer(true)}
-                  >
-                    {repairingLicenses ? '…' : 'Simular correção de licenças'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={repairingLicenses}
-                    onClick={() => void repairAllLicensesByOffer(false)}
-                  >
-                    {repairingLicenses ? 'Corrigindo…' : 'Corrigir licenças pelo offerCode'}
-                  </button>
-                </div>
-              </div>
+              <h3 style={{ margin: '0 0 12px' }}>Clientes ({filteredUsers.length})</h3>
               <div className="admin-search-bar">
                 <Search size={16} className="admin-search-icon" />
                 <input

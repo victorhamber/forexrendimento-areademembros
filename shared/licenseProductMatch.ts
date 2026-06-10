@@ -114,7 +114,7 @@ export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): b
 
 /**
  * Licenças elegíveis na validação do EA.
- * Todos os planos compartilham o mesmo systemId — o plano/produto vem do offerCode gravado na licença.
+ * Exige correspondência com o system_id solicitado e com um produto cadastrado para esse system_id.
  */
 export function filterLicensesForValidation<T extends LicenseLite>(
   licenses: T[],
@@ -124,48 +124,29 @@ export function filterLicensesForValidation<T extends LicenseLite>(
   const sid = String(systemId || '').trim();
   if (!sid) return [];
 
-  const onSystem = licenses.filter((lic) => {
+  const systemProducts = productsForSystemId(products, sid);
+  if (!systemProducts.length) {
+    return licenses.filter((lic) => String(lic.systemId || '').trim() === sid);
+  }
+
+  return licenses.filter((lic) => {
     const licSid = String(lic.systemId || '').trim();
-    return !licSid || licSid === sid;
+    if (licSid && licSid !== sid) return false;
+    return systemProducts.some((p) => licenseMatchesProduct(lic, p));
   });
-
-  const withOffer = onSystem.filter((lic) => {
-    const offer = String(lic.offerCode || '').trim();
-    if (offer) {
-      return products.some((p) => csvIncludes(String(p.offerCode || ''), offer));
-    }
-    const plan = norm(lic.plano);
-    if (plan) {
-      return products.some((p) => norm(p.plano) === plan);
-    }
-    return false;
-  });
-
-  return withOffer.length > 0 ? withOffer : onSystem;
 }
 
+/** Só retorna licença já vinculada à conta informada no painel (sem auto-vínculo). */
 export function pickLicenseFromCandidates<T extends LicenseLite & { numeroConta?: string | null }>(
   candidates: T[],
   numeroConta: string
 ): T | null {
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0];
+  const account = String(numeroConta || '').trim();
+  if (!account || candidates.length === 0) return null;
 
-  const linked = candidates.find((c) => String(c.numeroConta || '').trim() === numeroConta);
-  if (linked) return linked;
-
-  const empty = candidates.filter((c) => !String(c.numeroConta || '').trim());
-  if (empty.length === 0) return null;
-  if (empty.length === 1) return empty[0];
-
-  // Mesmo systemId compartilhado: várias licenças vazias só são válidas se forem o mesmo plano (offerCode).
-  const offers = new Set(empty.map((c) => String(c.offerCode || '').trim()).filter(Boolean));
-  if (offers.size > 1) return null;
-
-  const planos = new Set(empty.map((c) => norm(c.plano)).filter(Boolean));
-  if (planos.size > 1) return null;
-
-  return empty[0];
+  const matched = candidates.filter((c) => String(c.numeroConta || '').trim() === account);
+  if (matched.length === 1) return matched[0];
+  return null;
 }
 
 export function pickProductsForLicense(products: ProductLite[], lic: LicenseLite): ProductLite[] {

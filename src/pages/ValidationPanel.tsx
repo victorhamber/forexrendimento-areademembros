@@ -148,6 +148,19 @@ export function ValidationPanel({
         <p>{tr.validation_intro}</p>
       </header>
 
+      {!listLoading && licenses.length > 0 && (
+        <section className="validation-steps" aria-labelledby="validation-steps-title">
+          <h2 id="validation-steps-title" className="validation-steps-title">
+            {tr.validation_steps_title}
+          </h2>
+          <ol className="validation-steps-list">
+            <li>{tr.validation_step_1}</li>
+            <li>{tr.validation_step_2}</li>
+            <li>{tr.validation_step_3}</li>
+          </ol>
+        </section>
+      )}
+
       {toast && !editingLicense && (
         <p className={toast.type === 'ok' ? 'validation-toast validation-toast--ok' : 'validation-toast validation-toast--err'}>
           {toast.text}
@@ -184,7 +197,13 @@ export function ValidationPanel({
                   return (
                     <tr key={l.id}>
                       <td data-label={tr.validation_col_email}>{userEmail || '—'}</td>
-                      <td data-label={tr.validation_col_mt5}>{account || '—'}</td>
+                      <td data-label={tr.validation_col_mt5}>
+                        {account ? (
+                          account
+                        ) : (
+                          <span className="validation-account-pending">{tr.validation_account_pending}</span>
+                        )}
+                      </td>
                       <td data-label={tr.validation_col_product}>{l.productName || l.systemId || '—'}</td>
                       <td data-label={tr.validation_col_plan}>{l.plano || '—'}</td>
                       <td data-label={tr.validation_col_status}>
@@ -194,8 +213,12 @@ export function ValidationPanel({
                       </td>
                       <td data-label={tr.validation_col_expires}>{formatDateTime(l.dataExpiracao, lang)}</td>
                       <td data-label={tr.validation_col_actions}>
-                        <button type="button" className="validation-edit-btn" onClick={() => openEditModal(l)}>
-                          {tr.validation_edit_btn}
+                        <button
+                          type="button"
+                          className={`validation-edit-btn${account ? '' : ' validation-edit-btn--primary'}`}
+                          onClick={() => openEditModal(l)}
+                        >
+                          {account ? tr.validation_edit_btn : tr.validation_configure_btn}
                         </button>
                       </td>
                     </tr>
@@ -216,11 +239,16 @@ export function ValidationPanel({
             aria-labelledby="validation-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="validation-modal-title">{tr.validation_modal_title}</h2>
+            <h2 id="validation-modal-title">
+              {String(editingLicense.numeroConta || '').trim()
+                ? tr.validation_modal_title
+                : tr.validation_modal_title_new}
+            </h2>
             <p className="validation-modal-meta">
               {editingLicense.productName || editingLicense.systemId}
               {editingLicense.plano ? ` · ${editingLicense.plano}` : ''}
             </p>
+            <p className="validation-modal-hint">{tr.validation_modal_hint}</p>
             <label className="validation-label" htmlFor="validation-mt5-account">
               {tr.validation_account_label}
             </label>

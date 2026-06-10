@@ -4,6 +4,7 @@ import { resolveUserId } from '../auth/resolveUser.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import { normalizeCsv, parseCsv, csvIncludes } from '../lib/csv.js';
 import { resolveOwnedProductIds } from '../lib/licenseProductMatch.js';
+import { fireLicenseCreatedNotify } from '../lib/licenseAdminNotification.js';
 
 function sanitizeUrl(raw: unknown): string | null {
   const s = String(raw ?? '').trim();
@@ -257,7 +258,7 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
     const end = new Date();
     end.setDate(end.getDate() + 10); // 7 dias de trial + 3 dias de tolerância
 
-    await prisma.license.create({
+    const trialLicense = await prisma.license.create({
       data: {
         email,
         buyerName: name || null,
@@ -270,6 +271,7 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
         dataAtivacao: new Date()
       }
     });
+    fireLicenseCreatedNotify(prisma, trialLicense, 'trial');
 
     await prisma.trialHistory.create({
       data: {

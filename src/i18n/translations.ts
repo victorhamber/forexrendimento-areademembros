@@ -117,7 +117,12 @@ const translations = {
     // ── Minhas licenças (EA / robô) ──
     validation_title: 'Minhas Licenças',
     validation_intro:
-      'Veja suas licenças abaixo. Clique em Editar para informar ou atualizar o número da conta MetaTrader vinculada a cada produto.',
+      'Cadastre aqui o número da conta MetaTrader de cada produto antes de abrir o robô no gráfico. O EA só conecta se o e-mail, o produto e a conta baterem com o que estiver salvo abaixo.',
+    validation_steps_title: 'Como liberar o robô',
+    validation_step_1: 'Clique em Cadastrar conta (ou Editar) na licença do produto que você comprou.',
+    validation_step_2: 'Informe o número da conta MT5 em que o robô será usado e salve.',
+    validation_step_3:
+      'Abra o robô nessa mesma conta, com o mesmo e-mail desta área de membros. Sem cadastrar a conta aqui, o robô não valida.',
     validation_col_email: 'Email',
     validation_col_mt5: 'Conta MetaTrader',
     validation_col_product: 'Nome do Produto',
@@ -126,20 +131,27 @@ const translations = {
     validation_col_expires: 'Data Expir.',
     validation_col_actions: 'Ações',
     validation_edit_btn: 'Editar',
+    validation_configure_btn: 'Cadastrar conta',
     validation_modal_title: 'Editar Conta MetaTrader',
+    validation_modal_title_new: 'Cadastrar Conta MetaTrader',
+    validation_modal_hint:
+      'Use o número exato da conta MT5 em que você vai anexar o robô. Depois de salvar, abra o EA somente nessa conta.',
     validation_modal_save: 'Salvar',
     validation_modal_cancel: 'Cancelar',
     validation_saving: 'Salvando…',
     validation_loading_list: 'Carregando licenças…',
-    validation_account_saved: 'Número da conta salvo.',
+    validation_account_saved: 'Número da conta salvo. Abra o robô na mesma conta MetaTrader.',
+    validation_account_pending: 'Não cadastrada — obrigatório antes do robô',
     validation_save_error: 'Não foi possível salvar a conta.',
     validation_account_min_length: 'Informe pelo menos 3 dígitos na conta MetaTrader.',
     validation_account_locked:
       'Esta licença já está vinculada a outra conta MetaTrader. Para alterar, fale com o suporte.',
     validation_email_label: 'E-mail da conta',
     validation_account_label: 'Número da conta MetaTrader',
-    validation_valid: 'Licença válida.',
-    validation_invalid: 'Não foi possível validar. Confira a conta e se sua licença está ativa.',
+    validation_valid:
+      'Conta cadastrada e licença validada. Agora você pode abrir o robô na mesma conta MetaTrader.',
+    validation_invalid:
+      'Não foi possível validar. Cadastre a conta no painel, confira se é a mesma do MT5 e se a licença está ativa.',
     validation_loading: 'Validando...',
     validation_no_products:
       'Não encontramos licenças vinculadas ao seu e-mail. Se você já comprou, aguarde a liberação ou fale com o suporte.',
@@ -368,7 +380,12 @@ const translations = {
     // ── Mis licencias ──
     validation_title: 'Mis Licencias',
     validation_intro:
-      'Consulta tus licencias abajo. Haz clic en Editar para indicar o actualizar el número de cuenta MetaTrader de cada producto.',
+      'Registra aquí el número de cuenta MetaTrader de cada producto antes de abrir el robot en el gráfico. El EA solo conecta si el e-mail, el producto y la cuenta coinciden con lo guardado abajo.',
+    validation_steps_title: 'Cómo activar el robot',
+    validation_step_1: 'Haz clic en Registrar cuenta (o Editar) en la licencia del producto que compraste.',
+    validation_step_2: 'Indica el número de cuenta MT5 donde usarás el robot y guarda.',
+    validation_step_3:
+      'Abre el robot en esa misma cuenta, con el mismo e-mail de esta área de miembros. Sin registrar la cuenta aquí, el robot no valida.',
     validation_col_email: 'Email',
     validation_col_mt5: 'Cuenta MetaTrader',
     validation_col_product: 'Nombre del Producto',
@@ -377,20 +394,27 @@ const translations = {
     validation_col_expires: 'Fecha exp.',
     validation_col_actions: 'Acciones',
     validation_edit_btn: 'Editar',
+    validation_configure_btn: 'Registrar cuenta',
     validation_modal_title: 'Editar Cuenta MetaTrader',
+    validation_modal_title_new: 'Registrar Cuenta MetaTrader',
+    validation_modal_hint:
+      'Usa el número exacto de la cuenta MT5 donde adjuntarás el robot. Después de guardar, abre el EA solo en esa cuenta.',
     validation_modal_save: 'Guardar',
     validation_modal_cancel: 'Cancelar',
     validation_saving: 'Guardando…',
     validation_loading_list: 'Cargando licencias…',
-    validation_account_saved: 'Número de cuenta guardado.',
+    validation_account_saved: 'Número de cuenta guardado. Abre el robot en la misma cuenta MetaTrader.',
+    validation_account_pending: 'No registrada — obligatorio antes del robot',
     validation_save_error: 'No se pudo guardar la cuenta.',
     validation_account_min_length: 'Indica al menos 3 dígitos en la cuenta MetaTrader.',
     validation_account_locked:
       'Esta licencia ya está vinculada a otra cuenta MetaTrader. Para cambiarla, contacta soporte.',
     validation_email_label: 'E-mail de la cuenta',
     validation_account_label: 'Número de cuenta MetaTrader',
-    validation_valid: 'Licencia válida.',
-    validation_invalid: 'No se pudo validar. Revisa la cuenta y que tu licencia esté activa.',
+    validation_valid:
+      'Cuenta registrada y licencia validada. Ahora puedes abrir el robot en la misma cuenta MetaTrader.',
+    validation_invalid:
+      'No se pudo validar. Registra la cuenta en el panel, confirma que sea la misma del MT5 y que la licencia esté activa.',
     validation_loading: 'Validando...',
     validation_no_products:
       'No encontramos licencias vinculadas a tu e-mail. Si ya compraste, espera la liberación o contacta soporte.',

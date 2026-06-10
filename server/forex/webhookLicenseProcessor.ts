@@ -6,6 +6,10 @@ import { postRobotJson } from './robotNotify.js';
 import { parseCsv } from '../lib/csv.js';
 import { findProductByOfferCodeInList } from '../lib/licenseProductMatch.js';
 import { sendWelcomeEmail } from '../lib/welcomeEmail.js';
+import {
+  fireLicenseCreatedNotify,
+  fireLicenseExpiryUpdatedNotify,
+} from '../lib/licenseAdminNotification.js';
 import { isPrismaUniqueViolation } from '../lib/prismaErrors.js';
 
 async function findProductByOfferCode(prisma: PrismaClient, offerCode: string) {
@@ -249,6 +253,7 @@ async function activateLicense(
       };
 
       if (existing) {
+        const previousDataExpiracao = existing.dataExpiracao;
         const update: typeof licensePayload & { eventId?: string } = { ...licensePayload };
         // Renovação por assinatura mantém eventId original; compra nova atualiza para idempotência.
         const keepOriginalEventId = mode === 'renew' && !!existing.subscriberCode && !!subscriber_code;
@@ -258,7 +263,8 @@ async function activateLicense(
           });
           if (!conflict) update.eventId = licenseEventId;
         }
-        await prisma.license.update({ where: { id: existing.id }, data: update });
+        const updated = await prisma.license.update({ where: { id: existing.id }, data: update });
+        fireLicenseExpiryUpdatedNotify(prisma, updated, previousDataExpiracao, 'webhook');
         invalidateLicenseCacheForEmail(email);
         log(
           'INFO',
@@ -266,23 +272,31 @@ async function activateLicense(
         );
       } else {
         try {
-          await prisma.license.create({
+          const created = await prisma.license.create({
             data: {
               ...licensePayload,
               numeroConta: '',
               eventId: licenseEventId
             }
           });
+          fireLicenseCreatedNotify(prisma, created, 'webhook');
           log(
             'INFO',
             `Nova licença criada ${email} event=${licenseEventId} sys=${system_id} offer=${resolvedOfferCode} plano=${plano} produto=${product?.productName || '—'}`
           );
         } catch (err) {
           if (isPrismaUniqueViolation(err, 'eventId')) {
-            await prisma.license.update({
+            const prev = await prisma.license.findUnique({ where: { eventId: licenseEventId } });
+            const previousDataExpiracao = prev?.dataExpiracao;
+            const updated = await prisma.license.update({
               where: { eventId: licenseEventId },
               data: licensePayload
             });
+            if (prev) {
+              fireLicenseExpiryUpdatedNotify(prisma, updated, previousDataExpiracao, 'webhook_retry');
+            } else {
+              fireLicenseCreatedNotify(prisma, updated, 'webhook_retry');
+            }
             log('INFO', `Licença existente atualizada (eventId duplicado) ${email} event=${licenseEventId}`);
           } else {
             throw err;

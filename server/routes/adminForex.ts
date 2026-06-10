@@ -1,7 +1,12 @@
 import express from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { invalidateLicenseCacheForEmail } from '../lib/licenseValidationCache.js';
+import {
+  fireLicenseCreatedNotify,
+  fireLicenseExpiryUpdatedNotify,
+} from '../lib/licenseAdminNotification.js';
 import { repairLicensesByOfferCode } from '../lib/repairLicensesByOfferCode.js';
+import { exportDatabaseJson } from '../lib/databaseBackup.js';
 
 function addDurationByPlanFrom(planoRaw: string | null | undefined, base: Date): Date {
   const plano = String(planoRaw || 'mensal').toLowerCase().trim();
@@ -65,6 +70,7 @@ export function registerAdminForexRoutes(
           dataAtivacao: null
         }
       });
+      fireLicenseCreatedNotify(prisma, lic, 'admin');
       res.json(lic);
     } catch (e) {
       res.status(400).json({ error: String(e) });
@@ -95,6 +101,7 @@ export function registerAdminForexRoutes(
         dataExpiracao = addDurationByPlanFrom(plano, current.dataAtivacao);
       }
 
+      const previousDataExpiracao = current.dataExpiracao;
       const lic = await prisma.license.update({
         where: { id },
         data: {
@@ -110,6 +117,7 @@ export function registerAdminForexRoutes(
           ...(dataExpiracao && !current.dataAtivacao ? { dataAtivacao: new Date() } : {}),
         }
       });
+      fireLicenseExpiryUpdatedNotify(prisma, lic, previousDataExpiracao, 'admin');
       invalidateLicenseCacheForEmail(lic.email);
       res.json(lic);
     } catch (e) {
@@ -229,5 +237,19 @@ export function registerAdminForexRoutes(
       prisma.rankingEntry.findMany({ take: 2000, orderBy: { id: 'desc' } })
     ]);
     res.json({ licenses, products, rankingSample: ranking });
+  });
+
+  /** Backup completo do banco (JSON) para download antes de manutenção. */
+  app.get('/api/admin/database/backup', adminAuth, async (_req, res) => {
+    try {
+      const payload = await exportDatabaseJson(prisma);
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `autofintech-backup-${ts}.json`;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(JSON.stringify(payload));
+    } catch (e) {
+      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    }
   });
 }

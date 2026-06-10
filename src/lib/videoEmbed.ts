@@ -1,5 +1,5 @@
 export type VideoInfo = {
-  provider: 'youtube' | 'vimeo' | 'unknown';
+  provider: 'youtube' | 'vimeo' | 'html5' | 'unknown';
   videoId: string;
   embedUrl: string;
 };
@@ -9,6 +9,31 @@ function yt(id: string): VideoInfo {
 }
 function vim(id: string): VideoInfo {
   return { provider: 'vimeo', videoId: id, embedUrl: `https://player.vimeo.com/video/${id}` };
+}
+function html5(src: string): VideoInfo {
+  return { provider: 'html5', videoId: src, embedUrl: src };
+}
+
+const HTML5_VIDEO_EXT = /\.(mp4|webm|ogg|ogv|m3u8)(\?|#|$)/i;
+
+function isSelfHostedVideoUrl(url: string, parsed?: URL): boolean {
+  const lower = url.toLowerCase();
+  if (HTML5_VIDEO_EXT.test(lower)) return true;
+  if (lower.includes('/api/public/media/') && lower.includes('/file')) return true;
+  if (lower.includes('/uploads/') && HTML5_VIDEO_EXT.test(lower)) return true;
+  if (parsed) {
+    const path = parsed.pathname.toLowerCase();
+    if (path.includes('/api/public/media/') && path.endsWith('/file')) return true;
+  }
+  return false;
+}
+
+export function guessVideoMimeType(url: string): string {
+  const u = url.toLowerCase();
+  if (u.includes('.webm')) return 'video/webm';
+  if (u.includes('.ogg') || u.includes('.ogv')) return 'video/ogg';
+  if (u.includes('.m3u8')) return 'application/x-mpegURL';
+  return 'video/mp4';
 }
 
 /**
@@ -49,6 +74,8 @@ export function parseVideoUrl(raw: string | null | undefined): VideoInfo | null 
       if (id && /^\d+$/.test(id)) return vim(id);
       return { provider: 'vimeo', videoId: '', embedUrl: url };
     }
+
+    if (isSelfHostedVideoUrl(url, parsed)) return html5(url);
   } catch {
     /* fallback */
   }
@@ -61,6 +88,8 @@ export function parseVideoUrl(raw: string | null | undefined): VideoInfo | null 
 
   const vimeo = url.match(/vimeo\.com\/(\d+)/i);
   if (vimeo) return vim(vimeo[1]);
+
+  if (isSelfHostedVideoUrl(url)) return html5(url);
 
   return { provider: 'unknown', videoId: '', embedUrl: url };
 }

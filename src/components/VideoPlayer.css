@@ -146,3 +146,9 @@
 .video-player-wrap .plyr__controls {
   z-index: 10;
 }
+
+.video-player-plyr-mount video.video-player-html5-source {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

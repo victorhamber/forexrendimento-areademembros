@@ -3,7 +3,7 @@ import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
 import { Play } from 'lucide-react';
 import type { VideoInfo } from '../lib/videoEmbed';
-import { loadBestPoster, youtubePosterCandidates } from '../lib/videoEmbed';
+import { guessVideoMimeType, loadBestPoster, youtubePosterCandidates } from '../lib/videoEmbed';
 import { percentFromTime } from '../lib/lessonProgress';
 
 interface Props {
@@ -124,8 +124,9 @@ export const VideoPlayer = memo(function VideoPlayer({
     onEndedRef.current = onEnded;
   }, [onProgress, onEnded]);
 
-  const useFacade = video.provider === 'youtube' || video.provider === 'vimeo';
+  const useFacade = video.provider === 'youtube' || video.provider === 'vimeo' || video.provider === 'html5';
   const hideYoutubeUi = video.provider === 'youtube';
+  const isHtml5 = video.provider === 'html5';
 
   useEffect(() => {
     endedFiredRef.current = false;
@@ -133,7 +134,7 @@ export const VideoPlayer = memo(function VideoPlayer({
     initialResumePercentRef.current = bounded;
     setResumePercentDisplay(bounded);
     lastSavedPercentRef.current = bounded;
-  }, [video.videoId, video.provider, initialPercent]);
+  }, [video.videoId, video.provider, video.embedUrl, initialPercent]);
 
   useEffect(() => {
     if (video.provider !== 'youtube' || !video.videoId) {
@@ -188,9 +189,81 @@ export const VideoPlayer = memo(function VideoPlayer({
     []
   );
 
-  const mountPlyr = useCallback(() => {
+  const wirePlyrEvents = useCallback(
+    (player: Plyr) => {
+      const onPause = () => {
+        if (!hasPlayedRef.current) return;
+        reportProgress(player, true);
+        if (isPlaybackFinished(player)) {
+          handleNaturalPlaybackEnd(player, setPauseCover, firePlaybackEnded);
+        } else {
+          setPauseCover(true);
+        }
+      };
+      const onPlay = () => {
+        hasPlayedRef.current = true;
+        setPauseCover(false);
+        ensurePlayerAudio(player);
+      };
+      const onPlaying = () => ensurePlayerAudio(player);
+      const onTimeUpdate = () => reportProgress(player);
+      const onEndedEvent = () => {
+        handleNaturalPlaybackEnd(player, setPauseCover, firePlaybackEnded);
+      };
+
+      player.on('ready', () => {
+        if (posterUrl) player.poster = posterUrl;
+        ensurePlayerAudio(player);
+        setPauseCover(false);
+
+        const resumePercent = initialResumePercentRef.current;
+        const startPlayback = () => {
+          void Promise.resolve(player.play()).then(() => {
+            ensurePlayerAudio(player);
+            window.setTimeout(() => ensurePlayerAudio(player), 150);
+            window.setTimeout(() => ensurePlayerAudio(player), 600);
+          });
+        };
+
+        if (resumePercent > 2) {
+          const onFirstPlaying = () => {
+            player.off('playing', onFirstPlaying);
+            seekToSavedPosition(player);
+            ensurePlayerAudio(player);
+            window.setTimeout(() => ensurePlayerAudio(player), 200);
+          };
+          player.on('playing', onFirstPlaying);
+          startPlayback();
+        } else {
+          startPlayback();
+        }
+      });
+      player.on('pause', onPause);
+      player.on('play', onPlay);
+      player.on('playing', onPlaying);
+      player.on('timeupdate', onTimeUpdate);
+      player.on('ended', onEndedEvent);
+
+      const progressInterval = window.setInterval(() => {
+        if (player && !player.paused) reportProgress(player, true);
+      }, PROGRESS_SAVE_INTERVAL_MS);
+
+      return () => {
+        window.clearInterval(progressInterval);
+        reportProgress(player, true);
+        player.off('pause', onPause);
+        player.off('play', onPlay);
+        player.off('playing', onPlaying);
+        player.off('timeupdate', onTimeUpdate);
+        player.off('ended', onEndedEvent);
+      };
+    },
+    [posterUrl, reportProgress, seekToSavedPosition, firePlaybackEnded]
+  );
+
+  const mountEmbedPlyr = useCallback(() => {
     const el = containerRef.current;
-    if (!el || video.provider === 'unknown') return;
+    if (!el || video.provider === 'unknown' || video.provider === 'html5') return;
 
     el.innerHTML = '';
     const wrapper = document.createElement('div');
@@ -201,79 +274,33 @@ export const VideoPlayer = memo(function VideoPlayer({
 
     const player = new Plyr(wrapper, PLYR_OPTS);
     playerRef.current = player;
+    return wirePlyrEvents(player);
+  }, [video.provider, video.videoId, wirePlyrEvents]);
 
-    const syncPoster = () => {
-      if (posterUrl) player.poster = posterUrl;
-    };
+  const mountHtml5Plyr = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || video.provider !== 'html5') return;
 
-    const onPause = () => {
-      if (!hasPlayedRef.current) return;
-      reportProgress(player, true);
-      if (isPlaybackFinished(player)) {
-        handleNaturalPlaybackEnd(player, setPauseCover, firePlaybackEnded);
-      } else {
-        setPauseCover(true);
-      }
-    };
-    const onPlay = () => {
-      hasPlayedRef.current = true;
-      setPauseCover(false);
-      ensurePlayerAudio(player);
-    };
-    const onPlaying = () => ensurePlayerAudio(player);
-    const onTimeUpdate = () => reportProgress(player);
-    const onEndedEvent = () => {
-      handleNaturalPlaybackEnd(player, setPauseCover, firePlaybackEnded);
-    };
+    el.innerHTML = '';
+    const videoEl = document.createElement('video');
+    videoEl.setAttribute('playsinline', '');
+    videoEl.setAttribute('preload', 'metadata');
+    videoEl.className = 'video-player-html5-source';
+    const source = document.createElement('source');
+    source.src = video.embedUrl;
+    source.type = guessVideoMimeType(video.embedUrl);
+    videoEl.appendChild(source);
+    el.appendChild(videoEl);
 
-    player.on('ready', () => {
-      syncPoster();
-      ensurePlayerAudio(player);
-      setPauseCover(false);
+    const player = new Plyr(videoEl, PLYR_OPTS);
+    playerRef.current = player;
+    return wirePlyrEvents(player);
+  }, [video.provider, video.embedUrl, wirePlyrEvents]);
 
-      const resumePercent = initialResumePercentRef.current;
-      const startPlayback = () => {
-        void Promise.resolve(player.play()).then(() => {
-          ensurePlayerAudio(player);
-          window.setTimeout(() => ensurePlayerAudio(player), 150);
-          window.setTimeout(() => ensurePlayerAudio(player), 600);
-        });
-      };
-
-      if (resumePercent > 2) {
-        // Seek antes do play deixa o YouTube mudo; após iniciar, busca o ponto e desmuta.
-        const onFirstPlaying = () => {
-          player.off('playing', onFirstPlaying);
-          seekToSavedPosition(player);
-          ensurePlayerAudio(player);
-          window.setTimeout(() => ensurePlayerAudio(player), 200);
-        };
-        player.on('playing', onFirstPlaying);
-        startPlayback();
-      } else {
-        startPlayback();
-      }
-    });
-    player.on('pause', onPause);
-    player.on('play', onPlay);
-    player.on('playing', onPlaying);
-    player.on('timeupdate', onTimeUpdate);
-    player.on('ended', onEndedEvent);
-
-    const progressInterval = window.setInterval(() => {
-      if (player && !player.paused) reportProgress(player, true);
-    }, PROGRESS_SAVE_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(progressInterval);
-      reportProgress(player, true);
-      player.off('pause', onPause);
-      player.off('play', onPlay);
-      player.off('playing', onPlaying);
-      player.off('timeupdate', onTimeUpdate);
-      player.off('ended', onEndedEvent);
-    };
-  }, [video.provider, video.videoId, posterUrl, reportProgress, seekToSavedPosition, firePlaybackEnded]);
+  const mountPlyr = useCallback(() => {
+    if (video.provider === 'html5') return mountHtml5Plyr();
+    return mountEmbedPlyr();
+  }, [video.provider, mountHtml5Plyr, mountEmbedPlyr]);
 
   useEffect(() => {
     if (!activated || !useFacade) return;
@@ -319,7 +346,7 @@ export const VideoPlayer = memo(function VideoPlayer({
     return (
       <button
         type="button"
-        className="video-player-facade"
+        className={`video-player-facade${isHtml5 ? ' video-player-facade--html5' : ''}`}
         onClick={handleFacadeActivate}
         aria-label={title ? `Reproduzir: ${title}` : 'Reproduzir vídeo'}
       >

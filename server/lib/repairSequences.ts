@@ -24,9 +24,15 @@ export async function repairAutoincrementSequences(prisma: PrismaClient): Promis
         `SELECT MAX(id) AS max FROM "${table}"`
       );
       const maxId = Number(rows[0]?.max ?? 0);
-      await prisma.$executeRawUnsafe(
-        `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), ${maxId}, true)`
-      );
+      if (maxId <= 0) {
+        await prisma.$executeRawUnsafe(
+          `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), 1, false)`
+        );
+      } else {
+        await prisma.$executeRawUnsafe(
+          `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), ${maxId}, true)`
+        );
+      }
       repaired += 1;
     } catch (err) {
       console.warn(`[db] repair sequence "${table}" ignorado:`, err instanceof Error ? err.message : err);

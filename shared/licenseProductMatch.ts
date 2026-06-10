@@ -96,9 +96,38 @@ function productsBySystem(products: ProductLite[], systemId: string): ProductLit
   return products.filter((p) => csvIncludes(String(p.systemId || ''), systemId));
 }
 
+/**
+ * IDs equivalentes do mesmo produto (EA legado vs catálogo atual).
+ * Se o EA enviar qualquer ID do grupo, a mesma licença/produto é aceito.
+ */
+const SYSTEM_ID_ALIAS_GROUPS: string[][] = [['516247', '5162473']];
+
+export function equivalentSystemIds(systemId: string): string[] {
+  const sid = String(systemId || '').trim();
+  if (!sid) return [];
+  for (const group of SYSTEM_ID_ALIAS_GROUPS) {
+    if (group.includes(sid)) return [...group];
+  }
+  return [sid];
+}
+
+function productsForSystemIdGroup<T extends ProductLite>(products: T[], systemId: string): T[] {
+  const seen = new Set<number>();
+  const out: T[] = [];
+  for (const id of equivalentSystemIds(systemId)) {
+    for (const p of productsBySystem(products, id)) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        out.push(p as T);
+      }
+    }
+  }
+  return out;
+}
+
 /** Produtos do catálogo cujo CSV de systemId inclui o id enviado pelo EA. */
 export function productsForSystemId<T extends ProductLite>(products: T[], systemId: string): T[] {
-  return productsBySystem(products, String(systemId || '').trim()) as T[];
+  return productsForSystemIdGroup(products, String(systemId || '').trim()) as T[];
 }
 
 /** Licença pertence ao produto via código da oferta (prioridade) ou plano cadastrado. */
@@ -114,7 +143,7 @@ export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): b
 
 /**
  * Licenças elegíveis na validação do EA.
- * Exige correspondência com o system_id solicitado e com um produto cadastrado para esse system_id.
+ * Aceita o system_id solicitado e IDs equivalentes (ex.: 516247 ↔ 5162473).
  */
 export function filterLicensesForValidation<T extends LicenseLite>(
   licenses: T[],
@@ -124,14 +153,19 @@ export function filterLicensesForValidation<T extends LicenseLite>(
   const sid = String(systemId || '').trim();
   if (!sid) return [];
 
-  const systemProducts = productsForSystemId(products, sid);
+  const group = equivalentSystemIds(sid);
+  const systemProducts = productsForSystemIdGroup(products, sid);
+
   if (!systemProducts.length) {
-    return licenses.filter((lic) => String(lic.systemId || '').trim() === sid);
+    return licenses.filter((lic) => {
+      const licSid = String(lic.systemId || '').trim();
+      return licSid && group.includes(licSid);
+    });
   }
 
   return licenses.filter((lic) => {
     const licSid = String(lic.systemId || '').trim();
-    if (licSid && licSid !== sid) return false;
+    if (licSid && !group.includes(licSid)) return false;
     return systemProducts.some((p) => licenseMatchesProduct(lic, p));
   });
 }

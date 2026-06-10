@@ -66,6 +66,20 @@ function denyAccountMismatch(): DenyResult {
   };
 }
 
+function logLicenseFailure(
+  email: string,
+  numero_conta: string,
+  system_id: string,
+  status: number,
+  json: { message?: string }
+): void {
+  if (status === 200) return;
+  log(
+    'WARN',
+    `License validation: email=${email}, account=${numero_conta}, system=${system_id}, http=${status}, message=${json.message || '—'}`
+  );
+}
+
 /** Verificação estrita: system_id + conta do painel — aplicada em toda validação. */
 function assertStrictLicenseAccess(
   license: Pick<License, 'systemId' | 'offerCode' | 'plano' | 'numeroConta'>,
@@ -127,13 +141,19 @@ export async function validateLicenseHandler(
       : NaN;
 
   if (!isEmailValid(email)) {
-    return { status: 400, json: { status: 'error', message: 'Email format invalid.' } };
+    const json = { status: 'error', message: 'Email format invalid.' };
+    logLicenseFailure(email, numero_conta, system_id, 400, json);
+    return { status: 400, json };
   }
   if (!numero_conta || numero_conta.length < 3) {
-    return { status: 400, json: { status: 'error', message: 'Account number must have at least 3 characters.' } };
+    const json = { status: 'error', message: 'Account number must have at least 3 characters.' };
+    logLicenseFailure(email, numero_conta, system_id, 400, json);
+    return { status: 400, json };
   }
   if (!system_id) {
-    return { status: 400, json: { status: 'error', message: 'system_id is required.' } };
+    const json = { status: 'error', message: 'system_id is required.' };
+    logLicenseFailure(email, numero_conta, system_id, 400, json);
+    return { status: 400, json };
   }
 
   const cacheKey = `license_validation_${email}_${numero_conta}_${system_id}`;
@@ -159,6 +179,7 @@ export async function validateLicenseHandler(
       const denial = assertStrictLicenseAccess(byId, products, system_id, numero_conta);
       if (denial) {
         cacheSet(cacheKey, denial.status, denial.json);
+        logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
         return denial;
       }
       license = byId;
@@ -183,11 +204,13 @@ export async function validateLicenseHandler(
         },
       };
       cacheSet(cacheKey, result.status, result.json);
+      logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
       const denial = resolveLicenseDenial(forSystem as License[], numero_conta);
       if (denial) {
         cacheSet(cacheKey, denial.status, denial.json);
+        logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
         return denial;
       }
     }
@@ -197,6 +220,7 @@ export async function validateLicenseHandler(
     const denial = assertStrictLicenseAccess(license, products, system_id, numero_conta);
     if (denial) {
       cacheSet(cacheKey, denial.status, denial.json);
+      logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
       return denial;
     }
   }
@@ -240,7 +264,7 @@ export async function validateLicenseHandler(
   }
 
   cacheSet(cacheKey, result.status, result.json as object);
-  log('DEBUG', `License validation: email=${email}, account=${numero_conta}, system=${system_id}, http=${result.status}`);
+  logLicenseFailure(email, numero_conta, system_id, result.status, result.json as { message?: string });
   return result;
 }
 

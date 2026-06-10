@@ -21,19 +21,19 @@ export function registerForexRoutes(app: express.Application, prisma: PrismaClie
   const router = express.Router();
 
   const validate = async (req: express.Request, res: express.Response) => {
-    const started = Date.now();
     const ip = clientIp(req);
     if (!checkRateLimit(`rate_limit_${ip}`, 60, 60_000)) {
+      log('WARN', `validate_license rate limit: ip=${ip}`);
       return res.status(429).json({ status: 'error', message: 'Rate limit exceeded. Try again later.' });
     }
     const apiKey = String(req.headers['x-api-key'] || '');
     const keys = await getForexApiKeys(prisma);
     if (!keys.length || !keys.includes(apiKey)) {
+      log('WARN', `validate_license API key inválida: ip=${ip}`);
       return res.status(403).json({ status: 'error', message: 'Unauthorized: invalid or missing X-API-Key' });
     }
     const out = await validateLicenseHandler(prisma, req.body || {});
     res.status(out.status).json(out.json);
-    log('DEBUG', `validate_license ${Date.now() - started}ms`);
   };
 
   router.post('/validate_license', validate);

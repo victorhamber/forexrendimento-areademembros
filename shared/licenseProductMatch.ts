@@ -6,6 +6,7 @@ export type LicenseLite = {
   systemId?: string | null;
   offerCode?: string | null;
   plano?: string | null;
+  numeroConta?: string | null;
 };
 
 export type ProductLite = {
@@ -168,9 +169,62 @@ export function filterLicensesForValidation<T extends LicenseLite>(
   }
 
   return licenses.filter((lic) => {
-    if (!licenseSystemIdsMatchGroup(lic, group)) return false;
-    return systemProducts.some((p) => licenseMatchesProduct(lic, p));
+    // Um produto pode ter vários system_id (CSV); a licença vale para todos via oferta/plano.
+    if (systemProducts.some((p) => licenseMatchesProduct(lic, p))) return true;
+    return licenseSystemIdsMatchGroup(lic, group);
   });
+}
+
+function preferLicenseCandidate<T extends LicenseLite & { id?: number; numeroConta?: string | null }>(
+  next: T,
+  prev: T
+): T {
+  const nextAccount = String(next.numeroConta || '').trim();
+  const prevAccount = String(prev.numeroConta || '').trim();
+  if (nextAccount && !prevAccount) return next;
+  if (prevAccount && !nextAccount) return prev;
+  return (next.id ?? 0) > (prev.id ?? 0) ? next : prev;
+}
+
+/** Webhook antigo gerava eventId com sufixo _systemId na mesma transação Hotmart. */
+export function rootPurchaseEventId(eventId: string | null | undefined): string {
+  const e = String(eventId || '').trim();
+  if (!e) return '';
+  const m = e.match(/^(.+)_(5162473|516247|test|\d+)$/);
+  return m ? m[1] : e;
+}
+
+/**
+ * Só agrupa licenças da MESMA compra (bug legado: 1 transação → N licenças por system_id).
+ * Compras diferentes do mesmo produto permanecem separadas.
+ */
+export function collapseLegacySplitLicensesFromSamePurchase<
+  T extends LicenseLite & { id?: number; eventId?: string | null },
+>(licenses: T[]): T[] {
+  const groups = new Map<string, T[]>();
+  for (const lic of licenses) {
+    const root = rootPurchaseEventId(lic.eventId);
+    const key = root || `id:${lic.id ?? 0}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(lic);
+  }
+
+  const out: T[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const root = rootPurchaseEventId(group[0].eventId);
+    const hasLegacySplit =
+      !!root && group.some((l) => String(l.eventId || '').trim() !== root);
+    if (!hasLegacySplit) {
+      out.push(...group);
+      continue;
+    }
+    out.push(group.reduce((best, lic) => preferLicenseCandidate(lic, best)));
+  }
+  return out;
 }
 
 /** Só retorna licença já vinculada à conta informada no painel (sem auto-vínculo). */

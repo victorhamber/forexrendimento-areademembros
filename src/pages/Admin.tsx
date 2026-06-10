@@ -2613,7 +2613,7 @@ export const Admin: React.FC = () => {
             </p>
             <p className="admin-modal-lead">
               O acesso às <strong>trilhas EAD</strong> segue os cursos publicados no painel. As licenças abaixo valem para o robô / EA: o{' '}
-              <strong>código da oferta Hotmart</strong> (cadastrado em Produtos) define produto e plano — mesmo quando vários planos compartilham o mesmo <strong>systemId</strong>. O systemId é apenas o identificador que o EA envia na validação. A{' '}
+              <strong>código da oferta Hotmart</strong> (cadastrado em Produtos) define produto e plano. Cada <strong>compra</strong> gera uma licença; uma nova compra do mesmo produto gera outra licença. No cadastro manual, use o systemId completo do produto (todos os IDs do EA, separados por vírgula) — não crie uma licença por ID. A{' '}
               <strong>data de expiração só começa a contar na primeira validação</strong> do robô no gráfico — antes disso a licença fica ativa sem prazo em curso.
             </p>
 

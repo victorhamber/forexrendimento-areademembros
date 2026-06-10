@@ -1,6 +1,9 @@
 import type { License, PrismaClient } from '@prisma/client';
 import { cacheGet, cacheSet, invalidateLicenseCacheForEmail } from '../lib/licenseValidationCache.js';
-import { filterLicensesForValidation } from '../lib/licenseProductMatch.js';
+import {
+  collapseLegacySplitLicensesFromSamePurchase,
+  filterLicensesForValidation,
+} from '../lib/licenseProductMatch.js';
 import { fireLicenseExpiryUpdatedNotify } from '../lib/licenseAdminNotification.js';
 import { log } from '../lib/logger.js';
 
@@ -187,7 +190,9 @@ export async function validateLicenseHandler(
   }
 
   if (!license) {
-    const forSystem = filterLicensesForValidation(allForEmail, products, system_id);
+    const forSystem = collapseLegacySplitLicensesFromSamePurchase(
+      filterLicensesForValidation(allForEmail, products, system_id)
+    );
     const withAccount = forSystem.filter(
       (l) => String(l.numeroConta || '').trim() === numero_conta
     );

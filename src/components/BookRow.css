@@ -4,6 +4,7 @@
   border-radius: 10px;
   border: 1px solid #2a2a2a;
   background: #181818;
+  overflow: visible;
 }
 
 .row-title {
@@ -28,7 +29,9 @@
   display: flex;
   gap: 18px;
   overflow-x: auto;
-  padding: 0 16px var(--spacing-md);
+  overflow-y: visible;
+  /* Espaço para hover (translateY + sombra/borda) sem cortar o topo do card */
+  padding: 18px 16px 24px;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;

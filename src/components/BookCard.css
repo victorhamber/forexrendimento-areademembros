@@ -36,11 +36,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .book-card:hover {
-    transform: translateY(-8px);
-  }
-
   .book-card:hover .cover-container {
+    transform: translateY(-8px);
     box-shadow:
       0 20px 40px rgba(0, 0, 0, 0.48),
       0 0 0 1px color-mix(in srgb, var(--accent-primary) 42%, transparent);

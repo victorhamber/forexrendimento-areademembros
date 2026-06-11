@@ -30,6 +30,7 @@ type Course = {
   isPublic?: boolean;
   hasAccess?: boolean;
   salesPageUrl?: string | null;
+  memberPageUrl?: string | null;
   requiredSystemIds?: string[];
 };
 
@@ -99,6 +100,12 @@ export function Courses({ userId, lang, initialSlug, onInitialSlugConsumed, auth
       } else {
         alert('Este curso é exclusivo para clientes da oferta. Você ainda não tem licença para acessá-lo.');
       }
+      onInitialSlugConsumed?.();
+      return;
+    }
+    const memberUrl = target.memberPageUrl?.trim();
+    if (memberUrl) {
+      window.location.href = memberUrl;
       onInitialSlugConsumed?.();
       return;
     }
@@ -470,6 +477,11 @@ export function Courses({ userId, lang, initialSlug, onInitialSlugConsumed, auth
           const locked = course.hasAccess === false;
           const handleClick = () => {
             if (!locked) {
+              const memberUrl = course.memberPageUrl?.trim();
+              if (memberUrl) {
+                window.location.href = memberUrl;
+                return;
+              }
               setActiveCourseSlug(course.slug);
               return;
             }

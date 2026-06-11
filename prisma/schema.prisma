@@ -233,6 +233,8 @@ model Course {
   productIds      String?
   /// URL da página de vendas para quem clicar sem acesso.
   salesPageUrl    String?
+  /// Link externo ao clicar no card com acesso (ex.: WhatsApp). Se preenchido, não abre o EAD.
+  memberPageUrl   String?
 }
 
 model CourseModule {

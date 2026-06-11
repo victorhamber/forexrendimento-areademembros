@@ -160,7 +160,10 @@ export function licenseMatchesSystemGroup(lic: LicenseLite, group: string[]): bo
 export function licenseMatchesProduct(lic: LicenseLite, product: ProductLite): boolean {
   const offer = String(lic.offerCode || '').trim();
   if (offer) {
-    return csvIncludes(String(product.offerCode || ''), offer);
+    if (!csvIncludes(String(product.offerCode || ''), offer)) return false;
+    const licIds = parseCsv(String(lic.systemId || ''));
+    if (!licIds.length) return true;
+    return licenseSharesSystemWithProduct(lic, product);
   }
   const licPlan = norm(lic.plano);
   const prodPlan = norm(product.plano);
@@ -321,7 +324,7 @@ export function pickProductsForLicense(products: ProductLite[], lic: LicenseLite
 
   // 1) Código da oferta Hotmart é a fonte da verdade para produto + plano
   if (offer) {
-    const byOffer = products.filter((p) => csvIncludes(String(p.offerCode || ''), offer));
+    const byOffer = products.filter((p) => licenseMatchesProduct(lic, p));
     if (byOffer.length === 1) return byOffer;
     if (byOffer.length > 1) {
       const narrowed = narrowCandidates(byOffer, lic);

@@ -28,6 +28,7 @@ type PublicCourse = {
   isPublic?: boolean;
   hasAccess?: boolean;
   salesPageUrl?: string | null;
+  memberPageUrl?: string | null;
   requiredSystemIds?: string[];
 };
 
@@ -93,6 +94,12 @@ export const Home: React.FC<HomeProps> = ({
     const slug = id.slice(COURSE_CARD_PREFIX.length);
     if (!slug) return;
     if (hasAccess) {
+      const course = publishedCourses.find(c => c.slug === slug);
+      const memberUrl = course?.memberPageUrl?.trim();
+      if (memberUrl) {
+        window.location.href = memberUrl;
+        return;
+      }
       onOpenCourse?.(slug);
       return;
     }

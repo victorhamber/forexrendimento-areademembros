@@ -3,7 +3,11 @@ import type { PrismaClient } from '@prisma/client';
 import { resolveUserId } from '../auth/resolveUser.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import { normalizeCsv, parseCsv, csvIncludes } from '../lib/csv.js';
-import { resolveOwnedProductIds } from '../lib/licenseProductMatch.js';
+import {
+  equivalentSystemIds,
+  licenseMatchesProduct,
+  licenseMatchesSystemGroup,
+} from '../lib/licenseProductMatch.js';
 import { fireLicenseCreatedNotify } from '../lib/licenseAdminNotification.js';
 
 function sanitizeUrl(raw: unknown): string | null {
@@ -24,14 +28,26 @@ function normalizeProductIdsCsv(raw: unknown): string | null {
   return Array.from(new Set(ids)).join(',');
 }
 
-/** Resolve quais IDs de produto o usuário possui (systemId + offerCode/plano). */
-async function resolveUserOwnedProductIds(prisma: PrismaClient, userId: string | null): Promise<Set<number>> {
-  const owned = new Set<number>();
-  if (!userId) return owned;
+type CourseLicenseRow = {
+  systemId: string | null;
+  offerCode: string | null;
+  plano: string | null;
+};
+
+type CourseProductRow = {
+  id: number;
+  systemId: string | null;
+  offerCode: string | null;
+  plano: string | null;
+  productName?: string | null;
+};
+
+async function loadActiveLicensesForUser(prisma: PrismaClient, userId: string | null): Promise<CourseLicenseRow[]> {
+  if (!userId) return [];
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return owned;
+  if (!user) return [];
   const now = new Date();
-  const activeLicenses = await prisma.license.findMany({
+  return prisma.license.findMany({
     where: {
       email: user.email.toLowerCase(),
       statusLicenca: 'ativa',
@@ -39,18 +55,19 @@ async function resolveUserOwnedProductIds(prisma: PrismaClient, userId: string |
     },
     select: { systemId: true, offerCode: true, plano: true },
   });
-  if (!activeLicenses.length) return owned;
-  const allProducts = await prisma.product.findMany({
-    select: { id: true, systemId: true, offerCode: true, plano: true, productName: true },
-  });
-  return resolveOwnedProductIds(activeLicenses, allProducts);
+}
+
+function productMatchesSystemRequirement(product: CourseProductRow, requiredSid: string): boolean {
+  const group = equivalentSystemIds(requiredSid);
+  const prodIds = parseCsv(String(product.systemId || ''));
+  if (!prodIds.length) return csvIncludes(String(product.systemId || ''), requiredSid);
+  return prodIds.some((pid) => licenseMatchesSystemGroup({ systemId: pid }, group));
 }
 
 function computeCourseAccess(
   course: { licenseSystemId: string | null; productIds: string | null },
-  ownedProductIds: Set<number>,
-  userSystemIds: string[],
-  allProducts: Array<{ id: number; systemId: string }>
+  activeLicenses: CourseLicenseRow[],
+  allProducts: CourseProductRow[]
 ): { isPublic: boolean; hasAccess: boolean; requiredProductIds: number[]; requiredSystemIds: string[] } {
   const requiredProductIds = (course.productIds || '')
     .split(',')
@@ -58,27 +75,40 @@ function computeCourseAccess(
     .filter((n) => Number.isInteger(n) && n > 0);
   const requiredSystemIds = parseCsv(course.licenseSystemId);
   const isPublic = requiredProductIds.length === 0 && requiredSystemIds.length === 0;
-  let hasAccess = isPublic;
-  if (!isPublic) {
-    if (requiredProductIds.length) {
-      hasAccess = requiredProductIds.some((pid) => ownedProductIds.has(pid));
-    }
-    if (!hasAccess && requiredSystemIds.length) {
-      const mappedProductIds = Array.from(
-        new Set(
-          allProducts
-            .filter((p) => requiredSystemIds.some((sid) => csvIncludes(p.systemId, sid)))
-            .map((p) => p.id)
-        )
+
+  if (isPublic) {
+    return { isPublic: true, hasAccess: true, requiredProductIds, requiredSystemIds };
+  }
+
+  if (!activeLicenses.length) {
+    return { isPublic: false, hasAccess: false, requiredProductIds, requiredSystemIds };
+  }
+
+  let hasAccess = false;
+
+  if (requiredProductIds.length) {
+    const requiredProducts = allProducts.filter((p) => requiredProductIds.includes(p.id));
+    hasAccess = requiredProducts.some((product) =>
+      activeLicenses.some((lic) => licenseMatchesProduct(lic, product))
+    );
+  }
+
+  if (!hasAccess && requiredSystemIds.length) {
+    const mappedProducts = allProducts.filter((p) =>
+      requiredSystemIds.some((sid) => productMatchesSystemRequirement(p, sid))
+    );
+    if (mappedProducts.length) {
+      hasAccess = mappedProducts.some((product) =>
+        activeLicenses.some((lic) => licenseMatchesProduct(lic, product))
       );
-      if (mappedProductIds.length > 0) {
-        hasAccess = mappedProductIds.some((pid) => ownedProductIds.has(pid));
-      } else {
-        hasAccess = requiredSystemIds.some((sid) => userSystemIds.includes(sid));
-      }
+    } else {
+      hasAccess = activeLicenses.some((lic) =>
+        requiredSystemIds.some((sid) => licenseMatchesSystemGroup(lic, equivalentSystemIds(sid)))
+      );
     }
   }
-  return { isPublic, hasAccess, requiredProductIds, requiredSystemIds };
+
+  return { isPublic: false, hasAccess, requiredProductIds, requiredSystemIds };
 }
 
 export function registerEadAndTrialRoutes(app: express.Application, prisma: PrismaClient) {
@@ -94,23 +124,7 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
 
   app.get('/api/public/courses', async (req, res) => {
     const userId = resolveUserId(req);
-    const ownedProductIds = await resolveUserOwnedProductIds(prisma, userId);
-    let userSystemIds: string[] = [];
-    if (userId) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const now = new Date();
-        const activeLicenses = await prisma.license.findMany({
-          where: {
-            email: user.email.toLowerCase(),
-            statusLicenca: 'ativa',
-            OR: [{ dataExpiracao: null }, { dataExpiracao: { gte: now } }],
-          },
-          select: { systemId: true },
-        });
-        userSystemIds = [...new Set(activeLicenses.map(l => l.systemId).filter(Boolean))];
-      }
-    }
+    const activeLicenses = await loadActiveLicensesForUser(prisma, userId);
 
     const courses = await prisma.course.findMany({
       where: { published: true },
@@ -123,11 +137,11 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
       },
     });
     const allProducts = await prisma.product.findMany({
-      select: { id: true, systemId: true }
+      select: { id: true, systemId: true, offerCode: true, plano: true, productName: true },
     });
 
     const result = courses.map((c) => {
-      const access = computeCourseAccess(c, ownedProductIds, userSystemIds, allProducts);
+      const access = computeCourseAccess(c, activeLicenses, allProducts);
       const safeModules = access.hasAccess
         ? c.modules
         : c.modules.map((m) => ({ ...m, lessons: [] as typeof m.lessons }));
@@ -159,32 +173,17 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
     if (!c) return res.status(404).json({ error: 'Not found' });
 
     const userId = resolveUserId(req);
-    const ownedProductIds = await resolveUserOwnedProductIds(prisma, userId);
-    let userSystemIds: string[] = [];
-    if (userId) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const now = new Date();
-        const activeLicenses = await prisma.license.findMany({
-          where: {
-            email: user.email.toLowerCase(),
-            statusLicenca: 'ativa',
-            OR: [{ dataExpiracao: null }, { dataExpiracao: { gte: now } }],
-          },
-          select: { systemId: true },
-        });
-        userSystemIds = activeLicenses.map((l) => l.systemId).filter(Boolean);
-      }
-    }
+    const activeLicenses = await loadActiveLicensesForUser(prisma, userId);
     const allProducts = await prisma.product.findMany({
-      select: { id: true, systemId: true }
+      select: { id: true, systemId: true, offerCode: true, plano: true, productName: true },
     });
-    const access = computeCourseAccess(c, ownedProductIds, userSystemIds, allProducts);
+    const access = computeCourseAccess(c, activeLicenses, allProducts);
 
     if (!access.hasAccess) {
       return res.status(403).json({
         error: 'Acesso negado',
         salesPageUrl: c.salesPageUrl || null,
+        memberPageUrl: c.memberPageUrl || null,
         ...access,
       });
     }
@@ -317,13 +316,14 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
   });
 
   app.post('/api/admin/courses', admin, async (req, res) => {
-    const { title, slug, coverUrl, licenseSystemId, productIds, salesPageUrl, published } = req.body as {
+    const { title, slug, coverUrl, licenseSystemId, productIds, salesPageUrl, memberPageUrl, published } = req.body as {
       title?: string;
       slug?: string;
       coverUrl?: string | null;
       licenseSystemId?: string | null;
       productIds?: string | null;
       salesPageUrl?: string | null;
+      memberPageUrl?: string | null;
       published?: boolean;
     };
     if (!title || !slug) return res.status(400).json({ error: 'title and slug required' });
@@ -336,13 +336,14 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
         licenseSystemId: normalizeCsv(licenseSystemId ?? '') || null,
         productIds: normalizeProductIdsCsv(productIds),
         salesPageUrl: sanitizeUrl(salesPageUrl),
+        memberPageUrl: sanitizeUrl(memberPageUrl),
       },
     });
     res.json(c);
   });
 
   app.put('/api/admin/courses/:id', admin, async (req, res) => {
-    const { title, slug, coverUrl, published, sortOrder, licenseSystemId, productIds, salesPageUrl } =
+    const { title, slug, coverUrl, published, sortOrder, licenseSystemId, productIds, salesPageUrl, memberPageUrl } =
       req.body as {
         title?: string;
         slug?: string;
@@ -352,6 +353,7 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
         licenseSystemId?: string | null;
         productIds?: string | null;
         salesPageUrl?: string | null;
+        memberPageUrl?: string | null;
       };
     const c = await prisma.course
       .update({
@@ -366,6 +368,7 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
             licenseSystemId === undefined ? undefined : normalizeCsv(licenseSystemId ?? '') || null,
           productIds: productIds === undefined ? undefined : normalizeProductIdsCsv(productIds),
           salesPageUrl: salesPageUrl === undefined ? undefined : sanitizeUrl(salesPageUrl),
+          memberPageUrl: memberPageUrl === undefined ? undefined : sanitizeUrl(memberPageUrl),
         },
       })
       .catch(() => null);

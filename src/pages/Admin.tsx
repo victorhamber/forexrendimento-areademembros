@@ -275,6 +275,7 @@ export const Admin: React.FC = () => {
   const [newCourseCoverFile, setNewCourseCoverFile] = useState<File | null>(null);
   const [newCourseProductIds, setNewCourseProductIds] = useState('');
   const [newCourseSalesPageUrl, setNewCourseSalesPageUrl] = useState('');
+  const [newCourseMemberPageUrl, setNewCourseMemberPageUrl] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState<string>(savedUi.selectedCourseId || '');
   const [selectedModuleId, setSelectedModuleId] = useState<string>(savedUi.selectedModuleId || '');
   const [selectedLessonId, setSelectedLessonId] = useState<string>(savedUi.selectedLessonId || '');
@@ -284,6 +285,7 @@ export const Admin: React.FC = () => {
   const [editCourseCoverFile, setEditCourseCoverFile] = useState<File | null>(null);
   const [editCourseProductIds, setEditCourseProductIds] = useState('');
   const [editCourseSalesPageUrl, setEditCourseSalesPageUrl] = useState('');
+  const [editCourseMemberPageUrl, setEditCourseMemberPageUrl] = useState('');
   const [editModuleTitle, setEditModuleTitle] = useState('');
   const [editLessonTitle, setEditLessonTitle] = useState('');
   const [editLessonVideoUrl, setEditLessonVideoUrl] = useState('');
@@ -1685,6 +1687,7 @@ export const Admin: React.FC = () => {
       setEditCoursePublished(true);
       setEditCourseProductIds('');
       setEditCourseSalesPageUrl('');
+      setEditCourseMemberPageUrl('');
       return;
     }
     setEditCourseTitle(selectedCourse.title || '');
@@ -1692,6 +1695,7 @@ export const Admin: React.FC = () => {
     setEditCoursePublished(selectedCourse.published !== false);
     setEditCourseProductIds(selectedCourse.productIds || '');
     setEditCourseSalesPageUrl(selectedCourse.salesPageUrl || '');
+    setEditCourseMemberPageUrl(selectedCourse.memberPageUrl || '');
     setEditCourseCoverFile(null);
   }, [
     selectedCourseId,
@@ -1700,6 +1704,7 @@ export const Admin: React.FC = () => {
     selectedCourse?.published,
     selectedCourse?.productIds,
     selectedCourse?.salesPageUrl,
+    selectedCourse?.memberPageUrl,
   ]);
 
   useEffect(() => {
@@ -2081,6 +2086,7 @@ export const Admin: React.FC = () => {
           coverUrl,
           productIds: newCourseProductIds.trim() || null,
           salesPageUrl: newCourseSalesPageUrl.trim() || null,
+          memberPageUrl: newCourseMemberPageUrl.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -2092,6 +2098,7 @@ export const Admin: React.FC = () => {
       setNewCourseSlug('');
       setNewCourseCoverFile(null);
       setNewCourseProductIds('');
+      setNewCourseMemberPageUrl('');
       setNewCourseSalesPageUrl('');
       await fetchCourses();
       alert('Curso criado. Com capa, ele pode aparecer no banner da home se não houver imagem fixa em Banner início.');
@@ -2234,6 +2241,7 @@ export const Admin: React.FC = () => {
           published: editCoursePublished,
           productIds: editCourseProductIds.trim() || null,
           salesPageUrl: editCourseSalesPageUrl.trim() || null,
+          memberPageUrl: editCourseMemberPageUrl.trim() || null,
           ...(coverUrl !== undefined ? { coverUrl } : {}),
         }),
       });
@@ -3339,6 +3347,16 @@ export const Admin: React.FC = () => {
                         Usado quando um aluno sem licença clicar no card bloqueado deste curso.
                       </small>
 
+                      <label style={{ marginTop: 12 }}>Link para quem tem acesso (opcional)</label>
+                      <input
+                        placeholder="https://chat.whatsapp.com/..."
+                        value={editCourseMemberPageUrl}
+                        onChange={(e) => setEditCourseMemberPageUrl(e.target.value)}
+                      />
+                      <small style={{ color: 'var(--text-secondary)' }}>
+                        Se preenchido, o card abre este link em vez do EAD — útil para WhatsApp de suporte sem módulos/aulas.
+                      </small>
+
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
                         <input type="checkbox" checked={editCoursePublished} onChange={(e) => setEditCoursePublished(e.target.checked)} />
                         Curso publicado (visível para alunos)
@@ -3393,6 +3411,16 @@ export const Admin: React.FC = () => {
                       />
                       <small style={{ color: 'var(--text-secondary)' }}>
                         Quando um aluno sem acesso clicar no card deste curso, ele será redirecionado para este link.
+                      </small>
+
+                      <label style={{ marginTop: 12 }}>Link para quem tem acesso (opcional)</label>
+                      <input
+                        placeholder="https://chat.whatsapp.com/..."
+                        value={newCourseMemberPageUrl}
+                        onChange={(e) => setNewCourseMemberPageUrl(e.target.value)}
+                      />
+                      <small style={{ color: 'var(--text-secondary)' }}>
+                        Se preenchido, o card abre este link em vez do EAD — útil para WhatsApp de suporte sem módulos/aulas.
                       </small>
 
                       <div className="admin-form-actions" style={{ marginTop: 12 }}>

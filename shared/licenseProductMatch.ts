@@ -98,10 +98,10 @@ function productsBySystem(products: ProductLite[], systemId: string): ProductLit
 }
 
 /**
- * IDs equivalentes do mesmo produto (EA legado vs catálogo atual).
- * Se o EA enviar qualquer ID do grupo, a mesma licença/produto é aceito.
+ * IDs equivalentes do EA Trend (robô envia qualquer um em PRODUCT_SYSTEM_IDS).
+ * Licença/produto com 5162473 vale também para pedidos com 516247 ou test (sandbox).
  */
-const SYSTEM_ID_ALIAS_GROUPS: string[][] = [['516247', '5162473']];
+const SYSTEM_ID_ALIAS_GROUPS: string[][] = [['516247', '5162473', 'test']];
 
 export function equivalentSystemIds(systemId: string): string[] {
   const sid = String(systemId || '').trim();

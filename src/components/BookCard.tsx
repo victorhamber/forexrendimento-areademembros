@@ -45,9 +45,11 @@ export const BookCard: React.FC<BookCardProps> = ({
   const tr = t(lang);
   const showCover = Boolean(coverUrl && coverUrl.trim());
 
+  const locked = !hasAccess;
+
   const content = (
     <>
-      <div className="cover-container">
+      <div className={`cover-container${locked ? ' cover-container--locked' : ''}`}>
         {showCover ? (
           <img
             src={coverUrl}
@@ -55,10 +57,9 @@ export const BookCard: React.FC<BookCardProps> = ({
             className="book-cover"
             loading="lazy"
             draggable={false}
-            style={{ filter: !hasAccess ? 'grayscale(100%)' : 'none' }}
           />
         ) : (
-          <div className="book-cover book-cover--placeholder" aria-hidden>
+          <div className={`book-cover book-cover--placeholder${locked ? ' book-cover--placeholder-locked' : ''}`} aria-hidden>
             <GraduationCap size={48} strokeWidth={1.25} />
           </div>
         )}
@@ -69,10 +70,11 @@ export const BookCard: React.FC<BookCardProps> = ({
           </div>
         )}
 
-        {/* Lock overlay for books without access */}
-        {!hasAccess && (
-          <div className="lock-overlay">
-            <Lock size={20} strokeWidth={2.5} />
+        {locked && (
+          <div className="lock-overlay" aria-hidden>
+            <span className="lock-overlay-badge">
+              <Lock size={22} strokeWidth={2.25} />
+            </span>
           </div>
         )}
 
@@ -97,7 +99,7 @@ export const BookCard: React.FC<BookCardProps> = ({
         )}
       </div>
       {!hideInfo && (
-        <div className="book-info">
+        <div className={`book-info${locked ? ' book-info--locked' : ''}`}>
           <h3 className="book-title">{title}</h3>
           {description ? (
             <p className="book-description">{description}</p>
@@ -109,16 +111,18 @@ export const BookCard: React.FC<BookCardProps> = ({
     </>
   );
 
+  const cardClass = `book-card${locked ? ' book-card--locked' : ''}${isHotmart ? ' hotmart-fb' : ''}`;
+
   if (isHotmart) {
     return (
-      <a href={salesUrl} className="book-card hotmart-fb" onClick={(e) => onClick(e, id, hasAccess)} style={{ textDecoration: 'none' }}>
+      <a href={salesUrl} className={cardClass} onClick={(e) => onClick(e, id, hasAccess)} style={{ textDecoration: 'none' }}>
         {content}
       </a>
     );
   }
 
   return (
-    <div className="book-card" onClick={(e) => onClick(e, id, hasAccess)}>
+    <div className={cardClass} onClick={(e) => onClick(e, id, hasAccess)}>
       {content}
     </div>
   );

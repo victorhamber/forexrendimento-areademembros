@@ -51,21 +51,60 @@
   z-index: 5;
 }
 
-/* Lock overlay for unpurchased books */
+/* Card sem acesso: capa desbotada + cadeado central */
+.book-card--locked {
+  cursor: pointer;
+}
+
+.book-card--locked .cover-container--locked .book-cover {
+  filter: grayscale(100%) brightness(0.72);
+  opacity: 0.48;
+}
+
+.book-card--locked .book-cover--placeholder-locked {
+  filter: grayscale(100%);
+  opacity: 0.45;
+  color: var(--text-secondary);
+}
+
+.book-card--locked .cover-container--locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  z-index: 3;
+}
+
 .lock-overlay {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+  inset: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  padding-bottom: 10px;
-  color: rgba(255,255,255,0.7);
   pointer-events: none;
-  z-index: 4;
+  z-index: 5;
+}
+
+.lock-overlay-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #fbbf24;
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+.book-info--locked .book-title,
+.book-info--locked .book-author,
+.book-info--locked .book-description {
+  color: var(--text-secondary);
+  opacity: 0.72;
 }
 
 .wishlist-btn {

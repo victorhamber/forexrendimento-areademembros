@@ -109,6 +109,21 @@ export function findDesafioLicenseForUpgrade<
   return null;
 }
 
+/**
+ * Datas ao substituir Desafio/teste por plano pago: cliente já opera — não aguardar 1ª validação do EA.
+ * Expiração do novo plano conta a partir do upgrade/compra (now).
+ */
+export function datesForDesafioPlanUpgrade(
+  existing: { dataAtivacao?: Date | null },
+  newPlano: string,
+  now: Date,
+  addDurationFrom: (plano: string, base: Date) => Date
+): { dataAtivacao: Date; dataExpiracao: Date } {
+  const dataAtivacao = existing.dataAtivacao ?? now;
+  const dataExpiracao = addDurationFrom(newPlano, now);
+  return { dataAtivacao, dataExpiracao };
+}
+
 /** Conta MT5 já usada em outro desafio do mesmo produto EA (qualquer e-mail). */
 export function findDesafioAccountConflict<
   T extends LicenseLite & { id?: number; email?: string; plano?: string | null },

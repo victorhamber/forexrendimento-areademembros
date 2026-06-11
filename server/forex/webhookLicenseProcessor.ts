@@ -5,7 +5,11 @@ import { grantContentAccessForSystem, revokeContentAccessForSystem } from './lic
 import { postRobotJson } from './robotNotify.js';
 import { normalizeCsv, parseCsv } from '../lib/csv.js';
 import { findProductByOfferCodeInList } from '../lib/licenseProductMatch.js';
-import { findDesafioLicenseForUpgrade, isPaidUpgradePlan } from '../lib/desafioLicenseRules.js';
+import {
+  datesForDesafioPlanUpgrade,
+  findDesafioLicenseForUpgrade,
+  isPaidUpgradePlan,
+} from '../lib/desafioLicenseRules.js';
 import { sendWelcomeEmail } from '../lib/welcomeEmail.js';
 import {
   fireLicenseCreatedNotify,
@@ -253,18 +257,29 @@ async function activateLicense(
         `Renovação sem licença encontrada ${email} subscriber=${subscriber_code || '—'} sys=${licenseSystemId || '—'} event=${event_id}`
       );
     } else {
-      const shouldStartNow =
-        !isDesafioUpgrade && !!(existing?.dataAtivacao && existing?.dataExpiracao);
-      const baseForExpiry =
-        existing?.dataExpiracao && existing.dataExpiracao > now ? existing.dataExpiracao : now;
+      let dataAtivacao: Date | null = null;
+      let dataExpiracao: Date | null = null;
+      if (isDesafioUpgrade && existing) {
+        const dates = datesForDesafioPlanUpgrade(existing, plano, now, addDurationFrom);
+        dataAtivacao = dates.dataAtivacao;
+        dataExpiracao = dates.dataExpiracao;
+      } else {
+        const shouldStartNow = !!(existing?.dataAtivacao && existing?.dataExpiracao);
+        const baseForExpiry =
+          existing?.dataExpiracao && existing.dataExpiracao > now ? existing.dataExpiracao : now;
+        if (shouldStartNow) {
+          dataAtivacao = existing!.dataAtivacao as Date;
+          dataExpiracao = addDurationFrom(plano, baseForExpiry);
+        }
+      }
       const licensePayload = {
         email,
         buyerName: buyer_name || existing?.buyerName || null,
         plano,
         statusLicenca: 'ativa',
-        dataExpiracao: shouldStartNow ? addDurationFrom(plano, baseForExpiry) : null,
+        dataExpiracao,
         systemId: licenseSystemId || existing?.systemId || '',
-        dataAtivacao: shouldStartNow ? (existing?.dataAtivacao as Date) : null,
+        dataAtivacao,
         subscriberCode: subscriber_code || existing?.subscriberCode || null,
         offerCode: resolvedOfferCode || existing?.offerCode || null,
       };

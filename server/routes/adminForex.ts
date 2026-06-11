@@ -9,7 +9,9 @@ import { repairLicensesByOfferCode } from '../lib/repairLicensesByOfferCode.js';
 import { exportDatabaseJson } from '../lib/databaseBackup.js';
 import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
 import {
+  datesForDesafioPlanUpgrade,
   findDesafioLicenseForUpgrade,
+  isDesafioPlan,
   isPaidUpgradePlan,
 } from '../lib/desafioLicenseRules.js';
 
@@ -88,6 +90,13 @@ export function registerAdminForexRoutes(
       }
 
       if (upgradeTarget) {
+        const now = new Date();
+        const { dataAtivacao, dataExpiracao } = datesForDesafioPlanUpgrade(
+          upgradeTarget,
+          plano,
+          now,
+          addDurationByPlanFrom
+        );
         const lic = await prisma.license.update({
           where: { id: upgradeTarget.id },
           data: {
@@ -95,8 +104,8 @@ export function registerAdminForexRoutes(
             numeroConta: numeroConta || undefined,
             plano,
             statusLicenca: String(b.statusLicenca || 'ativa'),
-            dataExpiracao: null,
-            dataAtivacao: null,
+            dataExpiracao,
+            dataAtivacao,
             systemId,
             offerCode: b.offerCode != null ? String(b.offerCode).trim() || null : undefined,
             subscriberCode: b.subscriberCode != null ? String(b.subscriberCode) : undefined,
@@ -139,6 +148,7 @@ export function registerAdminForexRoutes(
       if (!current) return res.status(404).json({ error: 'Licença não encontrada.' });
       const plano = b.plano != null ? String(b.plano) : current.plano;
 
+      let dataAtivacao: Date | undefined;
       let dataExpiracao: Date | null | undefined;
       if (Object.prototype.hasOwnProperty.call(b, 'dataExpiracao')) {
         const raw = b.dataExpiracao;
@@ -151,6 +161,15 @@ export function registerAdminForexRoutes(
           }
           dataExpiracao = parsed;
         }
+      } else if (
+        b.plano != null &&
+        isDesafioPlan(current.plano) &&
+        isPaidUpgradePlan(plano)
+      ) {
+        const now = new Date();
+        const dates = datesForDesafioPlanUpgrade(current, plano, now, addDurationByPlanFrom);
+        dataAtivacao = dates.dataAtivacao;
+        dataExpiracao = dates.dataExpiracao;
       } else if (b.plano != null && current.dataAtivacao) {
         dataExpiracao = addDurationByPlanFrom(plano, current.dataAtivacao);
       }
@@ -190,10 +209,13 @@ export function registerAdminForexRoutes(
           plano: b.plano != null ? String(b.plano) : undefined,
           statusLicenca: b.statusLicenca != null ? String(b.statusLicenca) : undefined,
           ...(dataExpiracao !== undefined ? { dataExpiracao } : {}),
+          ...(dataAtivacao !== undefined ? { dataAtivacao } : {}),
           systemId: b.systemId != null ? String(b.systemId) : undefined,
           offerCode: b.offerCode !== undefined ? (b.offerCode ? String(b.offerCode).trim() : null) : undefined,
           subscriberCode: b.subscriberCode !== undefined ? (b.subscriberCode ? String(b.subscriberCode) : null) : undefined,
-          ...(dataExpiracao && !current.dataAtivacao ? { dataAtivacao: new Date() } : {}),
+          ...(dataExpiracao && !current.dataAtivacao && dataAtivacao === undefined
+            ? { dataAtivacao: new Date() }
+            : {}),
         }
       });
       fireLicenseExpiryUpdatedNotify(prisma, lic, previousDataExpiracao, 'admin');

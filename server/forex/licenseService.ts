@@ -1,9 +1,13 @@
 import type { License, PrismaClient } from '@prisma/client';
-import { cacheGet, cacheSet, invalidateLicenseCacheForEmail } from '../lib/licenseValidationCache.js';
 import {
-  collapseLegacySplitLicensesFromSamePurchase,
+  cacheGet,
+  cacheSetLicenseValidation,
+  invalidateLicenseCacheForEmail,
+} from '../lib/licenseValidationCache.js';
+import {
+  equivalentSystemIds,
   filterLicensesForValidation,
-  pickLicenseFromCandidates,
+  resolveLicenseForValidation,
 } from '../lib/licenseProductMatch.js';
 import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
 import { fireLicenseExpiryUpdatedNotify } from '../lib/licenseAdminNotification.js';
@@ -183,7 +187,7 @@ export async function validateLicenseHandler(
     if (byId) {
       const denial = assertStrictLicenseAccess(byId, products, system_id, numero_conta);
       if (denial) {
-        cacheSet(cacheKey, denial.status, denial.json);
+        cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
         logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
         return denial;
       }
@@ -192,19 +196,12 @@ export async function validateLicenseHandler(
   }
 
   if (!license) {
-    const eligible = collapseLegacySplitLicensesFromSamePurchase(
-      filterLicensesForValidation(allForEmail, products, system_id)
-    );
-    const forAccount = eligible.filter(
-      (l) => String(l.numeroConta || '').trim() === numero_conta
-    );
-    const picked =
-      pickLicenseFromCandidates(eligible as License[], numero_conta) ??
-      (forAccount.length === 1 ? (forAccount[0] as License) : null);
+    const eligible = filterLicensesForValidation(allForEmail, products, system_id);
+    const resolved = resolveLicenseForValidation(eligible as License[], numero_conta);
 
-    if (picked) {
-      license = picked;
-    } else if (forAccount.length > 1) {
+    if (resolved.kind === 'picked') {
+      license = resolved.license;
+    } else if (resolved.kind === 'ambiguous') {
       const result = {
         status: 400,
         json: {
@@ -213,13 +210,13 @@ export async function validateLicenseHandler(
             'Você tem mais de uma licença ativa para este produto. Vincule cada licença manualmente no painel.',
         },
       };
-      cacheSet(cacheKey, result.status, result.json);
+      cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
       const denial = resolveLicenseDenial(eligible as License[], numero_conta);
       if (denial) {
-        cacheSet(cacheKey, denial.status, denial.json);
+        cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
         logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
         return denial;
       }
@@ -229,7 +226,7 @@ export async function validateLicenseHandler(
   if (license) {
     const denial = assertStrictLicenseAccess(license, products, system_id, numero_conta);
     if (denial) {
-      cacheSet(cacheKey, denial.status, denial.json);
+      cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
       logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
       return denial;
     }
@@ -240,7 +237,7 @@ export async function validateLicenseHandler(
         status: 403,
         json: { status: 'error', message: desafioDenial.message },
       };
-      cacheSet(cacheKey, result.status, result.json);
+      cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     }
@@ -284,7 +281,14 @@ export async function validateLicenseHandler(
     result = { status: 403, json: { status: 'error', message: 'Licença inválida ou inativa.' } };
   }
 
-  cacheSet(cacheKey, result.status, result.json as object);
+  cacheSetLicenseValidation(
+    email,
+    numero_conta,
+    system_id,
+    result.status,
+    result.json as object,
+    equivalentSystemIds(system_id)
+  );
   logLicenseFailure(email, numero_conta, system_id, result.status, result.json as { message?: string });
   return result;
 }

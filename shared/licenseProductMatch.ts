@@ -256,6 +256,20 @@ export function collapseLegacySplitLicensesFromSamePurchase<
       continue;
     }
 
+    const distinctSystemKeys = new Set(
+      group
+        .map((l) =>
+          parseCsv(String(l.systemId || ''))
+            .sort()
+            .join('|')
+        )
+        .filter(Boolean)
+    );
+    if (distinctSystemKeys.size > 1) {
+      out.push(...group);
+      continue;
+    }
+
     const root = rootPurchaseEventId(group[0].eventId);
     const hasLegacySplit = group.some((l) => {
       const eid = String(l.eventId || '').trim();
@@ -275,17 +289,28 @@ export function pickLicenseFromCandidates<T extends LicenseLite & { numeroConta?
   candidates: T[],
   numeroConta: string
 ): T | null {
-  const account = String(numeroConta || '').trim();
-  if (!account || candidates.length === 0) return null;
+  const resolved = resolveLicenseForValidation(candidates, numeroConta);
+  return resolved.kind === 'picked' ? resolved.license : null;
+}
 
-  const matched = candidates.filter((c) => String(c.numeroConta || '').trim() === account);
-  if (matched.length === 1) return matched[0];
-  if (matched.length > 1) {
-    const collapsed = collapseLegacySplitLicensesFromSamePurchase(matched);
-    const narrowed = collapsed.filter((c) => String(c.numeroConta || '').trim() === account);
-    if (narrowed.length === 1) return narrowed[0];
-  }
-  return null;
+/**
+ * Escolhe licença para validação do EA: conta MT5 primeiro, colapso legado só entre duplicatas da mesma conta.
+ */
+export function resolveLicenseForValidation<
+  T extends LicenseLite & { id?: number; numeroConta?: string | null; eventId?: string | null },
+>(eligible: T[], numeroConta: string): { kind: 'picked'; license: T } | { kind: 'ambiguous' } | { kind: 'not_found' } {
+  const account = String(numeroConta || '').trim();
+  if (!account || !eligible.length) return { kind: 'not_found' };
+
+  let forAccount = eligible.filter((l) => String(l.numeroConta || '').trim() === account);
+  if (!forAccount.length) return { kind: 'not_found' };
+  if (forAccount.length === 1) return { kind: 'picked', license: forAccount[0] };
+
+  const collapsed = collapseLegacySplitLicensesFromSamePurchase(forAccount);
+  forAccount = collapsed.filter((l) => String(l.numeroConta || '').trim() === account);
+  if (forAccount.length === 1) return { kind: 'picked', license: forAccount[0] };
+  if (forAccount.length > 1) return { kind: 'ambiguous' };
+  return { kind: 'not_found' };
 }
 
 export function pickProductsForLicense(products: ProductLite[], lic: LicenseLite): ProductLite[] {

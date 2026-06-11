@@ -1,15 +1,15 @@
 .book-card {
   display: flex;
   flex-direction: column;
-  width: 168px;
+  width: 212px;
   flex-shrink: 0;
   cursor: pointer;
   scroll-snap-align: start;
-  transition: transform 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .book-card:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 .cover-container {
@@ -19,13 +19,49 @@
   overflow: hidden;
   position: relative;
   background-color: var(--bg-secondary);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+  transition:
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .book-cover {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.28s ease,
+    opacity 0.28s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .book-card:hover {
+    transform: translateY(-8px);
+  }
+
+  .book-card:hover .cover-container {
+    box-shadow:
+      0 20px 40px rgba(0, 0, 0, 0.48),
+      0 0 0 1px color-mix(in srgb, var(--accent-primary) 42%, transparent);
+  }
+
+  .book-card:hover .book-cover {
+    transform: scale(1.07);
+  }
+
+  .book-card--locked:hover .cover-container--locked .book-cover {
+    opacity: 0.58;
+    filter: grayscale(88%) brightness(0.82);
+    transform: scale(1.04);
+  }
+
+  .book-card--locked:hover .lock-overlay-badge {
+    transform: scale(1.08);
+    box-shadow:
+      0 6px 22px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(251, 191, 36, 0.5);
+  }
 }
 
 .book-cover--placeholder {
@@ -98,6 +134,9 @@
   box-shadow:
     0 4px 18px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(251, 191, 36, 0.35);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s ease;
 }
 
 .book-info--locked .book-title,
@@ -167,20 +206,26 @@
 
 @media (min-width: 768px) {
   .book-card {
-    width: 208px;
+    width: 256px;
   }
-  
+
   .book-title {
     font-size: 16px;
   }
-  
+
   .book-author,
   .book-description {
     font-size: 14px;
   }
-  
+
   .badge-access {
     font-size: 12px;
     padding: 6px 10px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .book-card {
+    width: 288px;
   }
 }

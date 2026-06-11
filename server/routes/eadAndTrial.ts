@@ -74,10 +74,11 @@ function computeCourseAccess(
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isInteger(n) && n > 0);
   const requiredSystemIds = parseCsv(course.licenseSystemId);
-  const isPublic = requiredProductIds.length === 0 && requiredSystemIds.length === 0;
+  const hasRestrictions = requiredProductIds.length > 0 || requiredSystemIds.length > 0;
 
-  if (isPublic) {
-    return { isPublic: true, hasAccess: true, requiredProductIds, requiredSystemIds };
+  // Sem produto/system_id vinculado: curso fica bloqueado para todos (não é público).
+  if (!hasRestrictions) {
+    return { isPublic: false, hasAccess: false, requiredProductIds, requiredSystemIds };
   }
 
   if (!activeLicenses.length) {

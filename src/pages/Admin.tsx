@@ -2008,7 +2008,7 @@ export const Admin: React.FC = () => {
     return (
       <div className="admin-sid-picker">
         {selectedIds.size === 0 ? (
-          <p className="admin-sid-empty">Curso público — qualquer usuário logado pode acessar.</p>
+          <p className="admin-sid-empty">Nenhum produto vinculado — o curso fica bloqueado até você selecionar ao menos um produto abaixo.</p>
         ) : (
           <div className="admin-sid-selected" role="list">
             {[...selectedIds].map((pid) => {
@@ -3334,7 +3334,7 @@ export const Admin: React.FC = () => {
                       <label style={{ marginTop: 12 }}>Produtos com acesso a este curso</label>
                       {renderProductPicker(editCourseProductIds, setEditCourseProductIds)}
                       <small style={{ color: 'var(--text-secondary)', marginTop: 6 }}>
-                        Clique nos produtos abaixo para liberar este curso. Apenas usuários com licença ativa para a combinação <strong>system_id + código da oferta</strong> daquele produto verão o conteúdo. Sem produtos = curso público.
+                        Clique nos produtos abaixo para liberar este curso. Apenas usuários com licença ativa para a combinação <strong>system_id + código da oferta</strong> daquele produto verão o conteúdo. Sem produtos = curso bloqueado para todos.
                       </small>
 
                       <label style={{ marginTop: 12 }}>Link da página de vendas (para quem não tem acesso)</label>
@@ -3400,7 +3400,7 @@ export const Admin: React.FC = () => {
                       <label style={{ marginTop: 12 }}>Produtos com acesso a este curso</label>
                       {renderProductPicker(newCourseProductIds, setNewCourseProductIds)}
                       <small style={{ color: 'var(--text-secondary)', marginTop: 6 }}>
-                        Clique nos produtos abaixo para liberar este curso. Apenas usuários com licença ativa para a combinação <strong>system_id + código da oferta</strong> daquele produto verão o conteúdo. Sem produtos = curso público.
+                        Clique nos produtos abaixo para liberar este curso. Apenas usuários com licença ativa para a combinação <strong>system_id + código da oferta</strong> daquele produto verão o conteúdo. Sem produtos = curso bloqueado para todos.
                       </small>
 
                       <label style={{ marginTop: 12 }}>Link da página de vendas (para quem não tem acesso)</label>

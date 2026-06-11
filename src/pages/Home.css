@@ -374,11 +374,11 @@
 }
 .skeleton-card {
   flex-shrink: 0;
-  width: 168px;
+  width: 212px;
 }
 .skeleton-cover {
-  width: 168px;
-  height: 252px;
+  width: 212px;
+  height: 318px;
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
   animation: shimmer 1.5s infinite;
@@ -396,6 +396,28 @@
   0% { opacity: 0.5; }
   50% { opacity: 1; }
   100% { opacity: 0.5; }
+}
+
+@media (min-width: 768px) {
+  .skeleton-card,
+  .skeleton-cover {
+    width: 256px;
+  }
+
+  .skeleton-cover {
+    height: 384px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .skeleton-card,
+  .skeleton-cover {
+    width: 288px;
+  }
+
+  .skeleton-cover {
+    height: 432px;
+  }
 }
 
 @media (min-width: 768px) {

@@ -98,10 +98,13 @@ function productsBySystem(products: ProductLite[], systemId: string): ProductLit
 }
 
 /**
- * IDs equivalentes do EA Trend (robô envia qualquer um em PRODUCT_SYSTEM_IDS).
- * Licença/produto com 5162473 vale também para pedidos com 516247 ou test (sandbox).
+ * IDs equivalentes do EA Trend (robô, catálogo e Hotmart legado).
+ * - 5162473: systemId atual no painel
+ * - 516247: systemId antigo do EA
+ * - 5162372: product.id Hotmart / licenças migradas do WordPress
+ * - test: sandbox / oferta teste
  */
-const SYSTEM_ID_ALIAS_GROUPS: string[][] = [['516247', '5162473', 'test']];
+const SYSTEM_ID_ALIAS_GROUPS: string[][] = [['516247', '5162473', '5162372', 'test']];
 
 export function equivalentSystemIds(systemId: string): string[] {
   const sid = String(systemId || '').trim();
@@ -208,7 +211,7 @@ function preferLicenseCandidate<T extends LicenseLite & { id?: number; numeroCon
 }
 
 /** Sufixos do webhook legado (1 transação → N licenças). Não usar \\d+ genérico — evita colapsar compras distintas. */
-const LEGACY_EVENT_ID_SUFFIXES = ['5162473', '516247', 'test'];
+const LEGACY_EVENT_ID_SUFFIXES = ['5162473', '516247', '5162372', 'test'];
 
 function legacyEventIdSuffix(eventId: string): string | null {
   for (const suffix of LEGACY_EVENT_ID_SUFFIXES) {

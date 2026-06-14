@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Lang } from '../i18n/translations';
 import { t } from '../i18n/translations';
+import { memberFetch } from '../lib/memberSession';
 import './ValidationPanel.css';
 
 type LicenseRow = {
@@ -60,7 +61,7 @@ export function ValidationPanel({
   const loadLicenses = useCallback(async () => {
     setListLoading(true);
     try {
-      const res = await fetch('/api/me/licenses', { headers: authHeaders() });
+      const res = await memberFetch('/api/me/licenses', { headers: authHeaders() });
       const d = (await res.json().catch(() => [])) as unknown;
       setLicenses(Array.isArray(d) ? (d as LicenseRow[]) : []);
     } catch {
@@ -99,7 +100,7 @@ export function ValidationPanel({
     setSaving(true);
     setToast(null);
     try {
-      const putRes = await fetch(`/api/me/licenses/${editingLicense.id}/account`, {
+      const putRes = await memberFetch(`/api/me/licenses/${editingLicense.id}/account`, {
         method: 'PUT',
         headers: authHeaders(true),
         body: JSON.stringify({ numero_conta: account }),
@@ -111,7 +112,7 @@ export function ValidationPanel({
       }
 
       if (status === 'ativa') {
-        const valRes = await fetch('/api/me/validate-license', {
+        const valRes = await memberFetch('/api/me/validate-license', {
           method: 'POST',
           headers: authHeaders(true),
           body: JSON.stringify({

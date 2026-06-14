@@ -1749,6 +1749,11 @@
   max-width: 1240px;
 }
 
+.admin-main--users .admin-content,
+.admin-main--users .admin-content--stack {
+  max-width: min(1680px, 100%);
+}
+
 .admin-builder-topbar {
   gap: 12px;
 }
@@ -2127,31 +2132,71 @@
 
 .admin-clients-table {
   table-layout: fixed;
+  min-width: 1080px;
 }
 
 .admin-clients-table th:nth-child(1),
 .admin-clients-table td:nth-child(1) {
-  width: 23%;
+  width: 14%;
 }
 
 .admin-clients-table th:nth-child(2),
 .admin-clients-table td:nth-child(2) {
-  width: 26%;
+  width: 18%;
 }
 
 .admin-clients-table th:nth-child(3),
 .admin-clients-table td:nth-child(3) {
-  width: 10%;
+  width: 16%;
 }
 
 .admin-clients-table th:nth-child(4),
 .admin-clients-table td:nth-child(4) {
-  width: 22%;
+  width: 12%;
 }
 
 .admin-clients-table th:nth-child(5),
 .admin-clients-table td:nth-child(5) {
-  width: 19%;
+  width: 8%;
+}
+
+.admin-clients-table th:nth-child(6),
+.admin-clients-table td:nth-child(6) {
+  width: 18%;
+}
+
+.admin-clients-table th:nth-child(7),
+.admin-clients-table td:nth-child(7) {
+  width: 14%;
+}
+
+.admin-client-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-client-tx-code {
+  display: inline-block;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  word-break: break-all;
+}
+
+.admin-client-phone {
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.admin-client-tx-cell,
+.admin-client-phone-cell {
+  vertical-align: top;
 }
 
 .admin-clients-table td {

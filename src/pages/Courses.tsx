@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, ExternalLink, GraduationCap, Lock, Play } from 'lucide-react';
 import type { Lang } from '../i18n/translations';
 import { t } from '../i18n/translations';
+import { memberFetch } from '../lib/memberSession';
 import { parseVideoUrl } from '../lib/videoEmbed';
 import { readEadResumeState, writeEadResumeState } from '../lib/lessonProgress';
 import { VideoPlayer } from '../components/VideoPlayer';
@@ -81,7 +82,7 @@ export function Courses({ userId, lang, initialSlug, onInitialSlugConsumed, auth
   };
 
   useEffect(() => {
-    fetch('/api/public/courses', { headers: buildHeaders() })
+    memberFetch('/api/public/courses', { headers: buildHeaders() })
       .then(r => r.json())
       .then((data: Course[]) => setCourses(Array.isArray(data) ? data : []))
       .catch(() => setCourses([]))
@@ -115,7 +116,7 @@ export function Courses({ userId, lang, initialSlug, onInitialSlugConsumed, auth
 
   useEffect(() => {
     if (!userId) return;
-    fetch('/api/me/course-progress', { headers: buildHeaders() })
+    memberFetch('/api/me/course-progress', { headers: buildHeaders() })
       .then(r => r.json())
       .then((data: { progress?: { lessonId: string; completed: boolean; percent: number }[] }) => {
         const m: ProgressMap = {};
@@ -160,7 +161,7 @@ export function Courses({ userId, lang, initialSlug, onInitialSlugConsumed, auth
       if (patch.completed != null) body.completed = patch.completed;
       if (patch.percent != null) body.percent = patch.percent;
       if (patch.completed === true) body.percent = 100;
-      void fetch('/api/me/lesson-progress', {
+      void memberFetch('/api/me/lesson-progress', {
         method: 'POST',
         headers: h,
         body: JSON.stringify(body),

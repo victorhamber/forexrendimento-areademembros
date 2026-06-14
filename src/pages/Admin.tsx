@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Pencil, Trash2, Users, KeyRound, UserPlus, Webhook, Copy, RefreshCw, Trash, Search, Mail, Key, GraduationCap, Layers, ListChecks, Images, Code2, LifeBuoy, Link2, FolderOpen, FolderPlus, Image as ImageIcon, Film, Music2, File as FileIcon } from 'lucide-react';
-import { resolveProductForLicense } from '@shared/licenseProductMatch';
+import { resolveProductForLicense, rootPurchaseEventId } from '@shared/licenseProductMatch';
 import {
   DEFAULT_RESET_BODY_PT,
   DEFAULT_WELCOME_BODY_PT,
@@ -137,6 +137,17 @@ function compareLicenseStatusLabel(a: string, b: string): number {
   const rb = rank(b);
   if (ra !== rb) return ra - rb;
   return a.localeCompare(b, 'pt');
+}
+
+function digitsOnly(value: string): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function displayTransactionCode(eventId: string | null | undefined): string {
+  const raw = String(eventId || '').trim();
+  if (!raw) return '';
+  const root = rootPurchaseEventId(raw);
+  return (root || raw).trim();
 }
 
 const ADMIN_JWT_KEY = 'contentpro_admin_jwt';
@@ -1803,12 +1814,52 @@ export const Admin: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [licensePlansByEmail]);
 
+  const transactionCodesByEmail = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const l of licenses as Array<{ email?: string; eventId?: string | null; id?: number }>) {
+      const email = String(l.email || '').toLowerCase().trim();
+      if (!email) continue;
+      const raw = String(l.eventId || '').trim();
+      const code = displayTransactionCode(l.eventId);
+      const values = [code, raw].filter(Boolean);
+      if (!values.length) continue;
+      if (!m.has(email)) m.set(email, []);
+      const list = m.get(email)!;
+      for (const v of values) {
+        if (!list.some((x) => x.toLowerCase() === v.toLowerCase())) list.push(v);
+      }
+    }
+    return m;
+  }, [licenses]);
+
+  const buyerPhoneByEmail = useMemo(() => {
+    const m = new Map<string, string>();
+    const sorted = [...licenses].sort((a: any, b: any) => (b?.id ?? 0) - (a?.id ?? 0));
+    for (const l of sorted as Array<{ email?: string; buyerPhone?: string | null }>) {
+      const email = String(l.email || '').toLowerCase().trim();
+      const phone = String(l.buyerPhone || '').trim();
+      if (!email || !phone || m.has(email)) continue;
+      m.set(email, phone);
+    }
+    return m;
+  }, [licenses]);
+
   const filteredUsers = useMemo(() => {
     const q = userSearch.toLowerCase().trim();
+    const qDigits = digitsOnly(q);
     return mergedClients.filter((u: any) => {
       const email = String(u.email || '').toLowerCase().trim();
       const name = String(u.name || '').toLowerCase().trim();
-      const textOk = !q || email.includes(q) || name.includes(q);
+      const txCodes = transactionCodesByEmail.get(email) || [];
+      const phone = buyerPhoneByEmail.get(email) || '';
+      const phoneDigits = digitsOnly(phone);
+      const textOk =
+        !q ||
+        email.includes(q) ||
+        name.includes(q) ||
+        txCodes.some((code) => code.toLowerCase().includes(q)) ||
+        phone.toLowerCase().includes(q) ||
+        (qDigits.length >= 4 && phoneDigits.includes(qDigits));
       if (!textOk) return false;
 
       const plans = licensePlansByEmail.get(email);
@@ -1820,7 +1871,7 @@ export const Admin: React.FC = () => {
 
       return true;
     });
-  }, [mergedClients, userSearch, userPlanFilter, userStatusFilter, licensePlansByEmail, licenseStatusSetByEmail]);
+  }, [mergedClients, userSearch, userPlanFilter, userStatusFilter, licensePlansByEmail, licenseStatusSetByEmail, transactionCodesByEmail, buyerPhoneByEmail]);
 
   useEffect(() => {
     setPageUsers(1);
@@ -3657,7 +3708,7 @@ export const Admin: React.FC = () => {
                 <Search size={16} className="admin-search-icon" />
                 <input
                   type="text"
-                  placeholder="Buscar por e-mail ou nome..."
+                  placeholder="Buscar por nome, e-mail, código HP… ou telefone"
                   value={userSearch}
                   onChange={e => setUserSearch(e.target.value)}
                 />
@@ -3698,16 +3749,45 @@ export const Admin: React.FC = () => {
                   <tr>
                     <th>Nome</th>
                     <th>E-mail</th>
+                    <th>Cód. transação</th>
+                    <th>Telefone</th>
                     <th>Licenças (EA)</th>
                     <th>Status</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedUsers.map((u: any) => (
+                  {pagedUsers.map((u: any) => {
+                    const emailKey = String(u.email).toLowerCase().trim();
+                    const txCodes = transactionCodesByEmail.get(emailKey) || [];
+                    const txDisplayCodes = [...new Set(txCodes.map((c) => displayTransactionCode(c) || c).filter(Boolean))];
+                    const phone = buyerPhoneByEmail.get(emailKey) || '';
+                    return (
                     <tr key={u.id}>
                       <td><span style={{ fontWeight: 500 }}>{u.name || <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sem nome</span>}</span></td>
                       <td>{u.email}</td>
+                      <td className="admin-client-tx-cell">
+                        {txDisplayCodes.length ? (
+                          <div className="admin-client-tx-list">
+                            {txDisplayCodes.map((code) => (
+                              <span key={code} className="admin-client-tx-code" title={code}>
+                                {code}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>—</span>
+                        )}
+                      </td>
+                      <td className="admin-client-phone-cell">
+                        {phone ? (
+                          <span className="admin-client-phone" title={phone}>
+                            {phone}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>—</span>
+                        )}
+                      </td>
                       <td>
                         {(() => {
                           const n = licenseCountByEmail.get(String(u.email).toLowerCase().trim()) || 0;
@@ -3765,7 +3845,8 @@ export const Admin: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -201,6 +201,7 @@ const translations = {
     profile_fill_fields: 'Preencha ambos os campos.',
     profile_connection_error: 'Erro de conexão.',
     profile_user_fallback: 'Usuário',
+    session_expired: 'Sua sessão expirou. Faça login novamente para continuar.',
 
     // ── InstallPrompt ──
     install_title: 'Instale o Aplicativo',
@@ -464,6 +465,7 @@ const translations = {
     profile_fill_fields: 'Completa ambos campos.',
     profile_connection_error: 'Error de conexión.',
     profile_user_fallback: 'Usuario',
+    session_expired: 'Tu sesión expiró. Inicia sesión de nuevo para continuar.',
 
     // ── InstallPrompt ──
     install_title: 'Instala la Aplicación',

@@ -17,6 +17,21 @@ import {
 } from '../lib/licenseAdminNotification.js';
 import { isPrismaUniqueViolation } from '../lib/prismaErrors.js';
 
+function extractBuyerPhone(buyer: Record<string, unknown>, purchase: Record<string, unknown>): string | null {
+  const candidates = [
+    buyer.checkout_phone,
+    buyer.phone,
+    buyer.phone_number,
+    (buyer.address as Record<string, unknown> | undefined)?.phone,
+    purchase.checkout_phone,
+  ];
+  for (const raw of candidates) {
+    const v = String(raw || '').trim();
+    if (v) return v;
+  }
+  return null;
+}
+
 async function findProductByOfferCode(prisma: PrismaClient, offerCode: string) {
   const code = String(offerCode || '').trim();
   if (!code) return null;
@@ -156,6 +171,7 @@ async function activateLicense(
   const email = String(buyer.email || '').trim().toLowerCase();
   const buyer_name = String(buyer.name || buyer.first_name || '').trim();
   const buyer_country = String(purchase.checkout_country?.toString() || (buyer.address as any)?.country || '').trim() || null;
+  const buyer_phone = extractBuyerPhone(buyer, purchase);
   let event_id = String(purchase.transaction || '').trim();
   if (!event_id) event_id = `evt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const offer_code = String(offer.code || productObj.offer_code || '').trim();
@@ -275,6 +291,7 @@ async function activateLicense(
       const licensePayload = {
         email,
         buyerName: buyer_name || existing?.buyerName || null,
+        buyerPhone: buyer_phone || existing?.buyerPhone || null,
         plano,
         statusLicenca: 'ativa',
         dataExpiracao,

@@ -18,6 +18,12 @@ import {
   readMemberTabFromLocation,
 } from './lib/memberTabs'
 import { applyMemberTheme, writeCachedMemberTheme, type MemberThemeSettings } from './lib/memberTheme'
+import {
+  checkLocalMemberToken,
+  clearMemberSessionStorage,
+  memberFetch,
+  registerMemberSessionHandler,
+} from './lib/memberSession'
 import './App.css'
 
 type MemberTab = 'home' | 'courses' | 'downloads' | 'validation' | 'ranking' | 'profile'
@@ -143,6 +149,7 @@ function App() {
   const [activeTab, setActiveTabState] = useState<MemberTab>(readStoredMemberTab)
   const [mountedTabs, setMountedTabs] = useState<Set<MemberTab>>(() => new Set([readStoredMemberTab()]))
   const profileLoadedRef = useRef(false)
+  const sessionAlertShownRef = useRef(false)
   const setActiveTab = (tab: MemberTab) => {
     setActiveTabState(tab)
     sessionStorage.setItem(MEMBER_TAB_KEY, tab)
@@ -179,36 +186,55 @@ function App() {
     localStorage.setItem('contentpro_userEmail', email)
   }
 
-  const handleLogout = () => {
-    setUserId(null); setUserEmail(null); setUserName(null)
-    localStorage.removeItem('contentpro_userId')
-    localStorage.removeItem('contentpro_userEmail')
-    localStorage.removeItem('contentpro_userName')
-    localStorage.removeItem('contentpro_token')
-  }
+  const handleLogout = useCallback(() => {
+    setUserId(null)
+    setUserEmail(null)
+    setUserName(null)
+    clearMemberSessionStorage()
+    profileLoadedRef.current = false
+    sessionAlertShownRef.current = false
+  }, [])
+
+  const handleSessionExpired = useCallback(() => {
+    const stillLoggedIn = userId || localStorage.getItem('contentpro_userId')
+    if (!stillLoggedIn) return
+    if (!sessionAlertShownRef.current) {
+      sessionAlertShownRef.current = true
+      alert(tr.session_expired)
+    }
+    handleLogout()
+  }, [userId, tr.session_expired, handleLogout])
+
+  useEffect(() => registerMemberSessionHandler(handleSessionExpired), [handleSessionExpired])
 
   const fetchData = () => {
     if (!userId) {
       setIsLoading(false)
       return
     }
+    if (!checkLocalMemberToken()) return
     const showInitialSpinner = !profileLoadedRef.current
     if (showInitialSpinner) setIsLoading(true)
-    Promise.all([fetch('/api/profile', { headers: authHeaders() }).then(r => r.json())]).then(([profile]) => {
-      if (profile?.name) { setUserName(profile.name); localStorage.setItem('contentpro_userName', profile.name) }
-      
-      // Auto-set language based on user's country if not manually set recently
-      if (profile?.country) {
-        const isSpanishCountry = ['AR','BO','CL','CO','CR','CU','DO','EC','SV','GT','HN','MX','NI','PA','PY','PE','PR','ES','UY','VE','GQ'].includes(profile.country);
-        const targetLang: Lang = isSpanishCountry ? 'es' : 'pt';
-        
-        // If current language is different, update it
-        if (lang !== targetLang) {
-          console.log(`[i18n] Auto-detecting lang from country ${profile.country} -> ${targetLang}`);
-          setLang(targetLang);
+    memberFetch('/api/profile', { headers: authHeaders() })
+      .then(async (res) => {
+        if (!res.ok) return
+        const profile = await res.json()
+        if (profile?.name) {
+          setUserName(profile.name)
+          localStorage.setItem('contentpro_userName', profile.name)
         }
-      }
-    }).catch(console.error)
+
+        if (profile?.country) {
+          const isSpanishCountry = ['AR','BO','CL','CO','CR','CU','DO','EC','SV','GT','HN','MX','NI','PA','PY','PE','PR','ES','UY','VE','GQ'].includes(profile.country);
+          const targetLang: Lang = isSpanishCountry ? 'es' : 'pt';
+
+          if (lang !== targetLang) {
+            console.log(`[i18n] Auto-detecting lang from country ${profile.country} -> ${targetLang}`);
+            setLang(targetLang);
+          }
+        }
+      })
+      .catch(console.error)
       .finally(() => {
         profileLoadedRef.current = true
         setIsLoading(false)
@@ -218,6 +244,21 @@ function App() {
   useEffect(() => {
     profileLoadedRef.current = false
     fetchData()
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const revalidateSession = () => {
+      if (document.visibilityState === 'hidden') return
+      if (!checkLocalMemberToken()) return
+      void memberFetch('/api/profile', { headers: authHeaders() })
+    }
+    document.addEventListener('visibilitychange', revalidateSession)
+    window.addEventListener('focus', revalidateSession)
+    return () => {
+      document.removeEventListener('visibilitychange', revalidateSession)
+      window.removeEventListener('focus', revalidateSession)
+    }
   }, [userId])
 
   useEffect(() => {
@@ -424,7 +465,7 @@ function App() {
               )}
               {mountedTabs.has('downloads') && (
                 <div className="member-tab-panel" hidden={activeTab !== 'downloads'}>
-                  <Library lang={lang} />
+                  <Library lang={lang} authHeaders={authHeaders} />
                 </div>
               )}
               {mountedTabs.has('validation') && userId && (
@@ -508,7 +549,7 @@ function ProfilePage({ userEmail, userName, lang, onLogout, onProfileUpdate, aut
   const handleSaveName = async () => {
     setSaving(true)
     try {
-      const res = await fetch('/api/profile', {
+      const res = await memberFetch('/api/profile', {
         method: 'PUT',
         headers: authHeaders(true),
         body: JSON.stringify({ name: nameValue })
@@ -526,7 +567,7 @@ function ProfilePage({ userEmail, userName, lang, onLogout, onProfileUpdate, aut
     if (!currentPass || !newPass) { alert(tr.profile_fill_fields); return }
     setSaving(true)
     try {
-      const res = await fetch('/api/profile/password', {
+      const res = await memberFetch('/api/profile/password', {
         method: 'PUT',
         headers: authHeaders(true),
         body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass })

@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Download as DownloadIcon, FileDown } from 'lucide-react';
 import { t } from '../i18n/translations';
 import type { Lang } from '../i18n/translations';
+import { memberFetch } from '../lib/memberSession';
 import './Library.css';
 
 interface LibraryProps {
   lang: Lang;
+  authHeaders?: (json?: boolean) => Record<string, string>;
 }
 
-export const Library: React.FC<LibraryProps> = ({ lang }) => {
+export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
   const tr = t(lang);
   const [downloads, setDownloads] = useState<
     Array<{
@@ -24,12 +26,15 @@ export const Library: React.FC<LibraryProps> = ({ lang }) => {
   const [loadingDownloads, setLoadingDownloads] = useState(true);
 
   useEffect(() => {
-    const tok = localStorage.getItem('contentpro_token');
-    const userId = localStorage.getItem('contentpro_userId');
-    const h: Record<string, string> = {};
-    if (userId) h['x-user-id'] = userId;
-    if (tok) h['Authorization'] = `Bearer ${tok}`;
-    fetch('/api/me/downloads', { headers: h })
+    const h = authHeaders ? authHeaders() : (() => {
+      const tok = localStorage.getItem('contentpro_token');
+      const userId = localStorage.getItem('contentpro_userId');
+      const headers: Record<string, string> = {};
+      if (userId) headers['x-user-id'] = userId;
+      if (tok) headers['Authorization'] = `Bearer ${tok}`;
+      return headers;
+    })();
+    memberFetch('/api/me/downloads', { headers: h })
       .then(r => r.json())
       .then((d: unknown) => {
         const rows = (d as { downloads?: unknown }).downloads;
@@ -38,7 +43,7 @@ export const Library: React.FC<LibraryProps> = ({ lang }) => {
       })
       .catch(() => setDownloads([]))
       .finally(() => setLoadingDownloads(false));
-  }, []);
+  }, [authHeaders]);
 
   if (!loadingDownloads && downloads.length === 0) {
     return (

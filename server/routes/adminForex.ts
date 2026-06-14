@@ -129,6 +129,7 @@ export function registerAdminForexRoutes(
           systemId,
           offerCode: b.offerCode != null ? String(b.offerCode).trim() || null : null,
           subscriberCode: b.subscriberCode != null ? String(b.subscriberCode) : null,
+          buyerPhone: b.buyerPhone != null ? String(b.buyerPhone).trim() || null : null,
           dataAtivacao: null,
         },
       });
@@ -213,6 +214,7 @@ export function registerAdminForexRoutes(
           systemId: b.systemId != null ? String(b.systemId) : undefined,
           offerCode: b.offerCode !== undefined ? (b.offerCode ? String(b.offerCode).trim() : null) : undefined,
           subscriberCode: b.subscriberCode !== undefined ? (b.subscriberCode ? String(b.subscriberCode) : null) : undefined,
+          buyerPhone: b.buyerPhone !== undefined ? (b.buyerPhone ? String(b.buyerPhone).trim() : null) : undefined,
           ...(dataExpiracao && !current.dataAtivacao && dataAtivacao === undefined
             ? { dataAtivacao: new Date() }
             : {}),

@@ -5,6 +5,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import Mark from 'mark.js';
 import { t } from '../i18n/translations';
 import type { Lang } from '../i18n/translations';
+import { buildMemberAuthHeaders, memberFetch } from '../lib/memberSession';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import './PDFReader.css';
@@ -12,11 +13,7 @@ import './PDFReader.css';
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 function memberHeaders(userId: string, json = false): Record<string, string> {
-  const h: Record<string, string> = { 'x-user-id': userId };
-  const tok = localStorage.getItem('contentpro_token');
-  if (tok) h['Authorization'] = `Bearer ${tok}`;
-  if (json) h['Content-Type'] = 'application/json';
-  return h;
+  return buildMemberAuthHeaders(userId, json);
 }
 
 interface HighlightData {
@@ -70,7 +67,7 @@ export const PDFReader: React.FC<PDFReaderProps> = ({ url, title, initialPage = 
 
   // Fetch highlights from DB
   useEffect(() => {
-    fetch(`/api/highlights/${contentId}`, { headers: memberHeaders(userId) })
+    memberFetch(`/api/highlights/${contentId}`, { headers: memberHeaders(userId) })
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setHighlights(data); })
       .catch(console.error);
@@ -117,7 +114,7 @@ export const PDFReader: React.FC<PDFReaderProps> = ({ url, title, initialPage = 
         if (text && text.length > 0 && activeHighlightColor) {
           // WE HAVE TEXT + WE ARE IN HIGHLIGHT MODE = Auto Save
           try {
-            const res = await fetch('/api/highlights', {
+            const res = await memberFetch('/api/highlights', {
               method: 'POST',
               headers: memberHeaders(userId, true),
               body: JSON.stringify({ contentId, pageNumber, text, color: activeHighlightColor })
@@ -152,7 +149,7 @@ export const PDFReader: React.FC<PDFReaderProps> = ({ url, title, initialPage = 
 
   const deleteHighlight = async (id: string) => {
     try {
-      await fetch(`/api/highlights/${id}`, {
+      await memberFetch(`/api/highlights/${id}`, {
         method: 'DELETE',
         headers: memberHeaders(userId)
       });

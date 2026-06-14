@@ -124,6 +124,8 @@ model License {
   /// Código da oferta originário do webhook/compra. Pareado com systemId define o produto.
   offerCode         String?
   subscriberCode    String?
+  /// Telefone do comprador (checkout Hotmart).
+  buyerPhone        String?
   createdAt         DateTime  @default(now())
 
   @@index([email, statusLicenca])

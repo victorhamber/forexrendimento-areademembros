@@ -5,6 +5,7 @@ import { t } from '../i18n/translations';
 import type { Lang } from '../i18n/translations';
 import { SHOW_LANGUAGE_SWITCHER } from '../i18n/featureFlags';
 import { readCachedMemberHero, writeCachedMemberHero } from '../lib/memberHeroCache';
+import { memberFetch } from '../lib/memberSession';
 import './Home.css';
 
 interface HomeProps {
@@ -148,7 +149,7 @@ export const Home: React.FC<HomeProps> = ({
   useEffect(() => {
     let cancelled = false;
     const headers = authHeaders ? authHeaders() : undefined;
-    fetch('/api/public/courses', headers ? { headers } : undefined)
+    memberFetch('/api/public/courses', headers ? { headers } : undefined)
       .then(r => (r.ok ? r.json() : []))
       .then((data: unknown) => {
         if (cancelled) return;

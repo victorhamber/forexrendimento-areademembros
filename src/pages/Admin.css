@@ -218,11 +218,9 @@
   width: 140px;
   max-width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1;
   object-fit: contain;
   object-position: center;
-  background: #000;
-  border-radius: 10px;
+  background: transparent;
   pointer-events: none;
   user-select: none;
 }

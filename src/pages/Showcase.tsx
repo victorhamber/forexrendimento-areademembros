@@ -52,12 +52,12 @@ export const Showcase: React.FC<ShowcaseProps> = ({ lang, onBack, slug }) => {
       .finally(() => setLoading(false));
   }, []);
 
-  const cover = (c: ShowcaseCourse) => c.coverUrl || '/brand-logo.png?v=3';
+  const cover = (c: ShowcaseCourse) => c.coverUrl || '/brand-logo.png?v=4';
 
   return (
     <div className="showcase-container">
       <header className="showcase-header">
-        <img src="/brand-logo.png?v=3" alt="Forex Rendimento" className="showcase-logo" />
+        <img src="/brand-logo.png?v=4" alt="Forex Rendimento" className="showcase-logo" />
         {!activeSlug && (
           <button className="showcase-back-btn" onClick={onBack}>
             {tr.showcase_back_btn}

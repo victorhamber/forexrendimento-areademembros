@@ -201,11 +201,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
 
         <div className="login-identity-block">
           <img
-            src="/brand-logo.png?v=5"
+            src="/brand-logo.png?v=6"
             alt={tr.login_brand_title}
             className="login-brand-logo"
-            width={280}
-            height={280}
+            width={360}
+            height={218}
             decoding="async"
           />
         </div>

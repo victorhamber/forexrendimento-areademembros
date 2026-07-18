@@ -25,9 +25,9 @@
   border: none;
   border-radius: 0;
   padding: 0;
-  margin: 0 auto 18px;
+  margin: 0 auto 12px;
   background: transparent;
-  width: min(100%, 280px);
+  width: min(100%, 360px);
 }
 
 .login-brand-logo {

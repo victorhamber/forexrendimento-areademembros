@@ -215,12 +215,14 @@
 }
 
 .admin-sidebar-logo {
-  width: 100%;
-  max-width: 180px;
+  width: 140px;
+  max-width: 100%;
   height: auto;
-  max-height: 96px;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
-  object-position: left center;
+  object-position: center;
+  background: #000;
+  border-radius: 10px;
   pointer-events: none;
   user-select: none;
 }

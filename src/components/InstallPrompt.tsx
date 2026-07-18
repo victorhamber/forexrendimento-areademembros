@@ -76,7 +76,7 @@ export const InstallPrompt: React.FC<InstallPromptProps> = ({ lang }) => {
       <div className="install-prompt-banner fade-in">
         <div className="install-prompt-content">
           <div className="install-icon">
-            <img src="/icons/icon-192.png" alt="" width={38} height={38} className="install-icon-img" />
+            <img src="/icons/app-icon-192.png?v=2" alt="Forex Rendimento" width={38} height={38} className="install-icon-img" />
           </div>
           <div className="install-text">
             <strong>{tr.install_title}</strong>

@@ -207,16 +207,16 @@
 .admin-sidebar-brand {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-md);
+  padding: 4px 0 var(--spacing-md);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .admin-sidebar-logo {
-  width: 140px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 220px;
   height: auto;
   object-fit: contain;
   object-position: center;

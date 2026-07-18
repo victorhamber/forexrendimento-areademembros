@@ -4405,7 +4405,7 @@ export const Admin: React.FC = () => {
 
             <label>URL do Webhook (cole na Hotmart)</label>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '6px 0 8px' }}>
-              Recomendado manter <strong>app.autofintech.com.br</strong> na Hotmart se já estava funcionando.
+              Recomendado manter <strong>app.forexrendimento.com</strong> na Hotmart se já estava funcionando.
               Os dois domínios apontam para o mesmo app — qualquer um funciona se o DNS estiver correto.
             </p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>

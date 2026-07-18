@@ -1,8 +1,8 @@
 /** URL pública da área de membros (e-mails, links para o cliente). */
-const DEFAULT_MEMBER_URL = 'https://autofintech.com.br';
+const DEFAULT_MEMBER_URL = 'https://forexrendimento.com';
 
 /** URL canônica para webhooks/API externa (Hotmart, EA). Mantém compatibilidade com subdomínio app. */
-const DEFAULT_WEBHOOK_BASE = 'https://app.autofintech.com.br';
+const DEFAULT_WEBHOOK_BASE = 'https://app.forexrendimento.com';
 
 function normalizeBaseUrl(raw: string): string {
   const v = String(raw || '').trim();

@@ -28,7 +28,7 @@ export function resolveAdminEmail(): string {
     return normalizeAdminEmail(String(raw));
   }
   if (process.env.NODE_ENV === 'production') {
-    return 'admin@autofintech.com.br';
+    return 'admin@forexrendimento.com';
   }
   return DEV_FALLBACK_EMAIL;
 }

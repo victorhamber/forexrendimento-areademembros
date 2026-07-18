@@ -271,7 +271,7 @@ export function LessonRichTextEditor({ value, onChange, placeholder, minHeight =
             rows={4}
             value={copyBlockText}
             onChange={(e) => setCopyBlockText(e.target.value)}
-            placeholder="Ex: https://autofintech.com.br ou número da conta MT5"
+            placeholder="Ex: https://forexrendimento.com ou número da conta MT5"
           />
           <div className="lesson-rte-link-actions">
             <button type="button" className="btn-primary" onClick={insertCopyBlock}>

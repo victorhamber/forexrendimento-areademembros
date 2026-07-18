@@ -16,7 +16,7 @@ HTTP **502** significa que o proxy (Traefik/Nginx do EasyPanel) **não recebeu r
    - Após cada deploy, aguarde ~30s (migração Prisma no boot) antes de testar upload.
 
 4. **Health**
-   - Abra: `https://autofintech.com.br/api/health`
+   - Abra: `https://forexrendimento.com/api/health`
    - Deve retornar `"uploadsWritable": true` e `"uploadDir": "/app/uploads"`.
 
 5. **Proxy**

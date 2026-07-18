@@ -22,11 +22,19 @@
 }
 
 .login-identity-block {
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: none;
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 8px 0 4px;
   margin-bottom: 16px;
-  background: rgba(0, 0, 0, 0.22);
+  background: transparent;
+}
+
+.login-brand-logo {
+  display: block;
+  width: min(100%, 280px);
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
 }
 
 .login-kicker {

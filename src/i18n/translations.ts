@@ -43,7 +43,7 @@ const translations = {
     // ── Member shell (layout aluno) ──
     member_area_badge: 'Área de membros',
     home_member_chip: 'Área de membros',
-    home_brand_logo_alt: 'AutoFinTech',
+    home_brand_logo_alt: 'Forex Rendimento',
     home_active_accesses: '{count} conteúdo(s) liberado(s) na sua conta',
     home_guest_name: 'Trader',
     hero_kicker: 'Acesso exclusivo',
@@ -305,7 +305,7 @@ const translations = {
     // ── Member shell (layout aluno) ──
     member_area_badge: 'Área de miembros',
     home_member_chip: 'Área de miembros',
-    home_brand_logo_alt: 'AutoFinTech',
+    home_brand_logo_alt: 'Forex Rendimento',
     home_active_accesses: '{count} contenido(s) liberado(s) en tu cuenta',
     home_guest_name: 'Trader',
     hero_kicker: 'Acceso exclusivo',

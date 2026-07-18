@@ -216,9 +216,9 @@
 
 .admin-sidebar-logo {
   width: 100%;
-  max-width: 220px;
+  max-width: 180px;
   height: auto;
-  max-height: 52px;
+  max-height: 96px;
   object-fit: contain;
   object-position: left center;
   pointer-events: none;

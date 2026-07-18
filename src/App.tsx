@@ -392,11 +392,11 @@ function App() {
           <aside className="member-sidebar" aria-label={tr.member_sidebar_hint}>
             <div className="member-sidebar-brand">
               <img
-                src="/autofintech-logo.png"
+                src="/logo.png"
                 alt={tr.home_brand_logo_alt}
                 className="member-sidebar-logo"
-                width={200}
-                height={48}
+                width={180}
+                height={96}
                 decoding="async"
               />
             </div>

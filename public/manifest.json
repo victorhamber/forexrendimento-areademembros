@@ -1,11 +1,11 @@
 {
-  "name": "AutoFinTech",
-  "short_name": "AutoFinTech",
+  "name": "Forex Rendimento",
+  "short_name": "ForexRendimento",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B1121",
   "theme_color": "#0B1121",
-  "description": "Área de membros AutoFinTech",
+  "description": "Área de membros Forex Rendimento",
   "icons": [
     {
       "src": "/icons/icon-192.png",

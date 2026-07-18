@@ -200,8 +200,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
         )}
 
         <div className="login-identity-block">
-          <p className="login-kicker">{tr.login_kicker}</p>
-          <h1 className="login-title-main">{tr.login_brand_title}</h1>
+          <img
+            src="/logo.png"
+            alt={tr.login_brand_title}
+            className="login-brand-logo"
+            width={280}
+            height={120}
+            decoding="async"
+          />
         </div>
 
         {/* ── LOGIN VIEW ── */}

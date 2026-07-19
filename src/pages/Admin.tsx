@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Pencil, Trash2, Users, KeyRound, UserPlus, Webhook, Copy, RefreshCw, Trash, Search, Mail, Key, GraduationCap, Layers, ListChecks, Images, Code2, LifeBuoy, Link2, FolderOpen, FolderPlus, Image as ImageIcon, Film, Music2, File as FileIcon } from 'lucide-react';
 import { resolveProductForLicense, rootPurchaseEventId } from '@shared/licenseProductMatch';
 import {
@@ -9,6 +9,7 @@ import {
 import { MEMBER_THEME_DEFAULTS, type MemberThemeKey } from '@shared/memberTheme';
 import { LessonRichTextEditor } from '../components/LessonRichTextEditor';
 import { sanitizeLessonBodyHtml } from '../lib/lessonBodyHtml';
+import { adminFetch, registerAdminSessionHandler, resetAdminSessionExpiredFlag } from '../lib/adminSession';
 import './Admin.css';
 
 const MEMBER_THEME_COLOR_FIELDS: { key: MemberThemeKey; label: string }[] = [
@@ -260,11 +261,30 @@ export const Admin: React.FC = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [masterPassword, setMasterPassword] = useState('');
   const [adminJwt, setAdminJwt] = useState(() => localStorage.getItem(ADMIN_JWT_KEY) || '');
+  const [adminSessionExpiredMessage, setAdminSessionExpiredMessage] = useState<string | null>(null);
 
   const authHeaders = (jwtOverride?: string): Record<string, string> => {
     const t = jwtOverride ?? adminJwt;
     return t ? { Authorization: `Bearer ${t}` } : {};
   };
+
+  const forceAdminLogout = useCallback((showAlert = true) => {
+    localStorage.removeItem(ADMIN_JWT_KEY);
+    localStorage.removeItem('adminToken');
+    sessionStorage.removeItem(ADMIN_UI_KEY);
+    setAdminJwt('');
+    setIsAdminLoggedIn(false);
+    setAuthBootstrapping(false);
+    if (showAlert) {
+      setAdminSessionExpiredMessage('Sua sessão do painel expirou. Faça login novamente para continuar.');
+    }
+  }, []);
+
+  useEffect(() => {
+    return registerAdminSessionHandler(() => {
+      forceAdminLogout(true);
+    });
+  }, [forceAdminLogout]);
 
   const [activeTab, setActiveTabState] = useState<AdminTab>(readStoredAdminTab);
   const setActiveTab = (tab: AdminTab) => {
@@ -580,7 +600,7 @@ export const Admin: React.FC = () => {
         [PAGE_BUILDER_FOLDERS_SETTING_KEY]: serializeBuilderFoldersSetting(folders),
       };
       if (opts?.allowShrink) body.__force_page_builder_shrink = true;
-      const res = await fetch('/api/admin/settings', {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'POST',
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -1146,16 +1166,13 @@ export const Admin: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch('/api/admin/users', { headers: h });
+      const res = await adminFetch('/api/admin/users', { headers: h });
       if (res.ok) {
         setIsAdminLoggedIn(true);
         const tok = jwt ?? adminJwt;
         if (tok) localStorage.setItem(ADMIN_JWT_KEY, tok);
       } else {
-        if (!opts?.silent) alert('Senha incorreta ou sessão inválida.');
-        setIsAdminLoggedIn(false);
-        localStorage.removeItem(ADMIN_JWT_KEY);
-        setAdminJwt('');
+        forceAdminLogout(!opts?.silent);
       }
     } catch {
       if (!opts?.silent) alert('Servidor offline.');
@@ -1166,7 +1183,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/users', { headers: h });
+      const res = await adminFetch('/api/admin/users', { headers: h });
       if (res.ok) setUsers(await res.json());
     } catch (err) {
       console.error('Error fetching users');
@@ -1177,7 +1194,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/webhook-logs', { headers: h });
+      const res = await adminFetch('/api/admin/webhook-logs', { headers: h });
       if (res.ok) setWebhookLogs(await res.json());
     } catch (err) {
       console.error('Error fetching webhook logs');
@@ -1188,7 +1205,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/webhook-urls', { headers: h });
+      const res = await adminFetch('/api/admin/webhook-urls', { headers: h });
       if (res.ok) setWebhookUrls(await res.json());
     } catch {
       console.error('Error fetching webhook urls');
@@ -1199,7 +1216,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/settings', { headers: h });
+      const res = await adminFetch('/api/admin/settings', { headers: h });
       if (res.ok) {
         const data = await res.json();
         setEmailSettings((prev) => ({
@@ -1254,7 +1271,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/licenses', { headers: h });
+      const res = await adminFetch('/api/admin/licenses', { headers: h });
       if (res.ok) setLicenses(await res.json());
     } catch {
       console.error('fetchLicenses');
@@ -1271,7 +1288,7 @@ export const Admin: React.FC = () => {
     }
     setModalLicensesLoading(true);
     try {
-      const res = await fetch(`/api/admin/licenses?email=${encodeURIComponent(em)}`, { headers: h });
+      const res = await adminFetch(`/api/admin/licenses?email=${encodeURIComponent(em)}`, { headers: h });
       if (res.ok) {
         const rows = await res.json();
         setModalClientLicenses(Array.isArray(rows) ? rows : []);
@@ -1293,7 +1310,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/products', { headers: h });
+      const res = await adminFetch('/api/admin/products', { headers: h });
       if (res.ok) setProducts(await res.json());
     } catch {
       console.error('fetchProducts');
@@ -1304,7 +1321,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/links', { headers: h });
+      const res = await adminFetch('/api/admin/links', { headers: h });
       if (res.ok) setShortLinks(await res.json());
     } catch {
       console.error('fetchShortLinks');
@@ -1315,7 +1332,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/media-folders', { headers: h });
+      const res = await adminFetch('/api/admin/media-folders', { headers: h });
       if (res.ok) {
         const rows = await res.json();
         setMediaFolders(rows);
@@ -1334,7 +1351,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/media', { headers: h });
+      const res = await adminFetch('/api/admin/media', { headers: h });
       if (res.ok) setMediaAssets(await res.json());
     } catch {
       console.error('fetchMediaAssets');
@@ -1349,7 +1366,7 @@ export const Admin: React.FC = () => {
     }
     setMediaFolderSaving(true);
     try {
-      const res = await fetch('/api/admin/media-folders', {
+      const res = await adminFetch('/api/admin/media-folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ name }),
@@ -1379,7 +1396,7 @@ export const Admin: React.FC = () => {
       alert('O nome não pode ficar vazio.');
       return;
     }
-    const res = await fetch(`/api/admin/media-folders/${folder.id}`, {
+    const res = await adminFetch(`/api/admin/media-folders/${folder.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ name }),
@@ -1395,7 +1412,7 @@ export const Admin: React.FC = () => {
 
   const deleteMediaFolder = async (folder: { id: string; name: string }) => {
     if (!window.confirm(`Excluir a pasta "${folder.name}"? Os arquivos permanecem na biblioteca (sem pasta).`)) return;
-    const res = await fetch(`/api/admin/media-folders/${folder.id}`, {
+    const res = await adminFetch(`/api/admin/media-folders/${folder.id}`, {
       method: 'DELETE',
       headers: { ...authHeaders() },
     });
@@ -1414,7 +1431,7 @@ export const Admin: React.FC = () => {
   };
 
   const moveMediaToFolder = async (mediaId: string, folderId: string) => {
-    const res = await fetch(`/api/admin/media/${mediaId}`, {
+    const res = await adminFetch(`/api/admin/media/${mediaId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ folderId: folderId || null }),
@@ -1432,9 +1449,9 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/courses', { headers: { ...h } });
+      const res = await adminFetch('/api/admin/courses', { headers: { ...h } });
       if (!res.ok) {
-        const fallback = await fetch('/api/public/courses');
+        const fallback = await adminFetch('/api/public/courses');
         const data = await fallback.json().catch(() => []);
         setCourses(Array.isArray(data) ? data : []);
         return;
@@ -1450,7 +1467,7 @@ export const Admin: React.FC = () => {
     const h = authHeaders(jwt);
     if (!h.Authorization) return;
     try {
-      const res = await fetch('/api/admin/settings', { headers: h });
+      const res = await adminFetch('/api/admin/settings', { headers: h });
       if (res.ok) {
         const s = await res.json();
         setForexWebhook(s.forex_webhook_token || '');
@@ -1471,7 +1488,7 @@ export const Admin: React.FC = () => {
     if (!h.Authorization) return;
     setEmailSaving(true);
     try {
-      const res = await fetch('/api/admin/email-settings', {
+      const res = await adminFetch('/api/admin/email-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
         body: JSON.stringify({
@@ -1506,7 +1523,7 @@ export const Admin: React.FC = () => {
     }
     setTestEmailSending(true);
     try {
-      const res = await fetch('/api/admin/email-settings/test', {
+      const res = await adminFetch('/api/admin/email-settings/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
         body: JSON.stringify({ to }),
@@ -1537,7 +1554,7 @@ export const Admin: React.FC = () => {
     if (!h.Authorization) return;
     setBannerSaving(true);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'POST',
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1576,7 +1593,7 @@ export const Admin: React.FC = () => {
         member_theme_button_text: String(emailSettings.member_theme_button_text || '').trim(),
         member_theme_video_accent: String(emailSettings.member_theme_video_accent || '').trim(),
       };
-      const res = await fetch('/api/admin/settings', {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'POST',
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1601,7 +1618,7 @@ export const Admin: React.FC = () => {
     setEmailSettings((p) => ({ ...p, ...MEMBER_THEME_DEFAULTS }));
     setThemeSaving(true);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await adminFetch('/api/admin/settings', {
         method: 'POST',
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify(MEMBER_THEME_DEFAULTS),
@@ -2131,7 +2148,7 @@ export const Admin: React.FC = () => {
       if (newCourseCoverFile) {
         coverUrl = await uploadFile(newCourseCoverFile);
       }
-      const res = await fetch('/api/admin/courses', {
+      const res = await adminFetch('/api/admin/courses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2167,7 +2184,7 @@ export const Admin: React.FC = () => {
     const title = newModuleTitle.trim();
     if (!title) return;
     try {
-      const res = await fetch('/api/admin/course-modules', {
+      const res = await adminFetch('/api/admin/course-modules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ courseId: selectedCourseId, title }),
@@ -2191,7 +2208,7 @@ export const Admin: React.FC = () => {
     const title = newLessonTitle.trim();
     if (!title) return;
     try {
-      const res = await fetch('/api/admin/course-lessons', {
+      const res = await adminFetch('/api/admin/course-lessons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2222,7 +2239,7 @@ export const Admin: React.FC = () => {
   };
 
   const reorderModuleLessons = async (moduleId: string, lessonIds: string[]) => {
-    const res = await fetch(`/api/admin/course-modules/${moduleId}/reorder-lessons`, {
+    const res = await adminFetch(`/api/admin/course-modules/${moduleId}/reorder-lessons`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ lessonIds }),
@@ -2286,7 +2303,7 @@ export const Admin: React.FC = () => {
     try {
       let coverUrl: string | undefined = undefined;
       if (editCourseCoverFile) coverUrl = await uploadFile(editCourseCoverFile);
-      const res = await fetch(`/api/admin/courses/${selectedCourseId}`, {
+      const res = await adminFetch(`/api/admin/courses/${selectedCourseId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2316,7 +2333,7 @@ export const Admin: React.FC = () => {
     if (!selectedCourseId) return;
     if (!window.confirm('Excluir este curso e todos os módulos e aulas?')) return;
     try {
-      const res = await fetch(`/api/admin/courses/${selectedCourseId}`, { method: 'DELETE', headers: { ...authHeaders() } });
+      const res = await adminFetch(`/api/admin/courses/${selectedCourseId}`, { method: 'DELETE', headers: { ...authHeaders() } });
       if (!res.ok) {
         alert('Falha ao excluir.');
         return;
@@ -2333,7 +2350,7 @@ export const Admin: React.FC = () => {
   const handleSaveModule = async () => {
     if (!selectedModuleId || !editModuleTitle.trim()) return;
     try {
-      const res = await fetch(`/api/admin/course-modules/${selectedModuleId}`, {
+      const res = await adminFetch(`/api/admin/course-modules/${selectedModuleId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ title: editModuleTitle.trim() }),
@@ -2353,7 +2370,7 @@ export const Admin: React.FC = () => {
     if (!selectedModuleId) return;
     if (!window.confirm('Excluir este módulo e todas as aulas?')) return;
     try {
-      await fetch(`/api/admin/course-modules/${selectedModuleId}`, { method: 'DELETE', headers: { ...authHeaders() } });
+      await adminFetch(`/api/admin/course-modules/${selectedModuleId}`, { method: 'DELETE', headers: { ...authHeaders() } });
       setSelectedModuleId('');
       setSelectedLessonId('');
       await fetchCourses();
@@ -2365,7 +2382,7 @@ export const Admin: React.FC = () => {
   const handleSaveLesson = async () => {
     if (!selectedLessonId || !editLessonTitle.trim()) return;
     try {
-      const res = await fetch(`/api/admin/course-lessons/${selectedLessonId}`, {
+      const res = await adminFetch(`/api/admin/course-lessons/${selectedLessonId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2392,7 +2409,7 @@ export const Admin: React.FC = () => {
     if (!selectedLessonId) return;
     if (!window.confirm('Excluir esta aula?')) return;
     try {
-      await fetch(`/api/admin/course-lessons/${selectedLessonId}`, { method: 'DELETE', headers: { ...authHeaders() } });
+      await adminFetch(`/api/admin/course-lessons/${selectedLessonId}`, { method: 'DELETE', headers: { ...authHeaders() } });
       setSelectedLessonId('');
       await fetchCourses();
     } catch {
@@ -2411,7 +2428,7 @@ export const Admin: React.FC = () => {
       setAuthBootstrapping(true);
       void (async () => {
         try {
-          const res = await fetch('/api/admin/login', {
+          const res = await adminFetch('/api/admin/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: '', password: legacyPwd }),
@@ -2441,7 +2458,7 @@ export const Admin: React.FC = () => {
     const email = adminEmail.trim();
     if (!email || !masterPassword) return;
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await adminFetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: masterPassword }),
@@ -2458,6 +2475,8 @@ export const Admin: React.FC = () => {
       setAdminJwt(data.token);
       localStorage.setItem(ADMIN_JWT_KEY, data.token);
       localStorage.removeItem('adminToken');
+      resetAdminSessionExpiredFlag();
+      setAdminSessionExpiredMessage(null);
       setAdminEmail('');
       setMasterPassword('');
       await loadDashboard(data.token);
@@ -2470,7 +2489,7 @@ export const Admin: React.FC = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await adminFetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
@@ -2484,7 +2503,7 @@ export const Admin: React.FC = () => {
           alert('Escolha um produto para o cadastro manual.');
           return;
         }
-        const licRes = await fetch('/api/admin/licenses', {
+        const licRes = await adminFetch('/api/admin/licenses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
@@ -2524,11 +2543,11 @@ export const Admin: React.FC = () => {
     if (!window.confirm(msg)) return;
     try {
       const res = isLicenseOnly
-        ? await fetch(`/api/admin/license-clients?email=${encodeURIComponent(user.email)}`, {
+        ? await adminFetch(`/api/admin/license-clients?email=${encodeURIComponent(user.email)}`, {
             method: 'DELETE',
             headers: { ...authHeaders() },
           })
-        : await fetch(`/api/admin/users/${user.id}`, {
+        : await adminFetch(`/api/admin/users/${user.id}`, {
             method: 'DELETE',
             headers: { ...authHeaders() },
           });
@@ -2548,7 +2567,7 @@ export const Admin: React.FC = () => {
   const uploadFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch('/api/admin/upload', {
+    const res = await adminFetch('/api/admin/upload', {
       method: 'POST', headers: { ...authHeaders() }, body: formData
     });
     const data = await res.json();
@@ -2566,6 +2585,11 @@ export const Admin: React.FC = () => {
     }
     return (
       <div className="admin-login-container">
+        {adminSessionExpiredMessage && (
+          <div className="admin-session-expired-banner" role="alert">
+            {adminSessionExpiredMessage}
+          </div>
+        )}
         <form onSubmit={handleLogin} className="admin-login-box">
           <h2>Centro de Comando</h2>
           <p>Exclusivo ao Criador</p>
@@ -2769,7 +2793,7 @@ export const Admin: React.FC = () => {
                                 if (!window.confirm('Excluir esta licença?')) return;
                                 setLicenseModalBusy(true);
                                 try {
-                                  const res = await fetch(`/api/admin/licenses/${l.id}`, {
+                                  const res = await adminFetch(`/api/admin/licenses/${l.id}`, {
                                     method: 'DELETE',
                                     headers: { ...authHeaders() },
                                   });
@@ -2932,7 +2956,7 @@ export const Admin: React.FC = () => {
                       onClick={async () => {
                         setLicenseModalBusy(true);
                         try {
-                          const res = await fetch(`/api/admin/licenses/${editingLicenseId}`, {
+                          const res = await adminFetch(`/api/admin/licenses/${editingLicenseId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
@@ -2993,7 +3017,7 @@ export const Admin: React.FC = () => {
                     onClick={async () => {
                       setLicenseModalBusy(true);
                       try {
-                        const res = await fetch('/api/admin/licenses', {
+                        const res = await adminFetch('/api/admin/licenses', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...authHeaders() },
                           body: JSON.stringify({
@@ -3953,7 +3977,7 @@ export const Admin: React.FC = () => {
                     };
                     const url = editingShortLinkId != null ? `/api/admin/links/${editingShortLinkId}` : '/api/admin/links';
                     const method = editingShortLinkId != null ? 'PUT' : 'POST';
-                    const res = await fetch(url, {
+                    const res = await adminFetch(url, {
                       method,
                       headers: { 'Content-Type': 'application/json', ...authHeaders() },
                       body: JSON.stringify(payload),
@@ -4045,7 +4069,7 @@ export const Admin: React.FC = () => {
                               className="btn-danger-sm"
                               onClick={async () => {
                                 if (!window.confirm('Excluir este link?')) return;
-                                const res = await fetch(`/api/admin/links/${link.id}`, {
+                                const res = await adminFetch(`/api/admin/links/${link.id}`, {
                                   method: 'DELETE',
                                   headers: { ...authHeaders() },
                                 });
@@ -4116,7 +4140,7 @@ export const Admin: React.FC = () => {
                       const form = new FormData();
                       form.append('file', mediaFile);
                       if (mediaUploadFolderId) form.append('folderId', mediaUploadFolderId);
-                      const res = await fetch('/api/admin/media', {
+                      const res = await adminFetch('/api/admin/media', {
                         method: 'POST',
                         headers: { ...authHeaders() },
                         body: form
@@ -4316,7 +4340,7 @@ export const Admin: React.FC = () => {
                                 className="btn-danger-sm"
                                 onClick={async () => {
                                   if (!window.confirm(`Excluir "${m.originalName}" da biblioteca?`)) return;
-                                  const res = await fetch(`/api/admin/media/${m.id}`, {
+                                  const res = await adminFetch(`/api/admin/media/${m.id}`, {
                                     method: 'DELETE',
                                     headers: { ...authHeaders() }
                                   });
@@ -4374,7 +4398,7 @@ export const Admin: React.FC = () => {
                 if (!h.Authorization) return;
                 const value = String(emailSettings.member_support_url || '').trim();
                 try {
-                  const res = await fetch('/api/admin/settings', {
+                  const res = await adminFetch('/api/admin/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...h },
                     body: JSON.stringify({ member_support_url: value }),
@@ -4470,7 +4494,7 @@ export const Admin: React.FC = () => {
                 </button>
                 <button className="btn-icon btn-danger" onClick={async () => {
                   if (!window.confirm('Limpar todos os logs?')) return;
-                  await fetch('/api/admin/webhook-logs', { method: 'DELETE', headers: { ...authHeaders() } });
+                  await adminFetch('/api/admin/webhook-logs', { method: 'DELETE', headers: { ...authHeaders() } });
                   setWebhookLogs([]);
                 }} title="Limpar Logs">
                   <Trash size={16} />
@@ -4775,7 +4799,7 @@ export const Admin: React.FC = () => {
                 return;
               }
               const isEdit = editingProductId != null;
-              const res = await fetch(
+              const res = await adminFetch(
                 isEdit ? `/api/admin/products/${editingProductId}` : '/api/admin/products',
                 {
                   method: isEdit ? 'PUT' : 'POST',
@@ -4824,7 +4848,7 @@ export const Admin: React.FC = () => {
                             downloadUrl = url;
                             downloadFileName = robotFile.name;
                           }
-                          const res = await fetch(`/api/admin/products/${selectedProductForDownload.id}`, {
+                          const res = await adminFetch(`/api/admin/products/${selectedProductForDownload.id}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
@@ -4852,7 +4876,7 @@ export const Admin: React.FC = () => {
                         className="btn-danger-sm"
                         onClick={async () => {
                           if (!window.confirm('Remover o arquivo de download desse produto?')) return;
-                          const res = await fetch(`/api/admin/products/${selectedProductForDownload.id}`, {
+                          const res = await adminFetch(`/api/admin/products/${selectedProductForDownload.id}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({ downloadUrl: null, downloadFileName: null })
@@ -4943,7 +4967,7 @@ export const Admin: React.FC = () => {
                         <button type="button" className="btn-danger-sm" onClick={async () => {
                           if (!window.confirm('Excluir produto?')) return;
                           if (editingProductId === p.id) cancelEditProduct();
-                          await fetch(`/api/admin/products/${p.id}`, { method: 'DELETE', headers: { ...authHeaders() } });
+                          await adminFetch(`/api/admin/products/${p.id}`, { method: 'DELETE', headers: { ...authHeaders() } });
                           void fetchProducts();
                         }}>Excluir</button>
                         </div>
@@ -4994,7 +5018,7 @@ export const Admin: React.FC = () => {
                     return;
                   }
                   try {
-                    const r = await fetch('/api/admin/page-builder/reset', {
+                    const r = await adminFetch('/api/admin/page-builder/reset', {
                       method: 'POST',
                       headers: { ...h, 'Content-Type': 'application/json' },
                       body: JSON.stringify({ confirm: 'APAGAR TUDO' }),
@@ -5460,7 +5484,7 @@ export const Admin: React.FC = () => {
             <textarea rows={6} value={forexApiLines} onChange={e => setForexApiLines(e.target.value)} style={{ width: '100%', fontFamily: 'monospace' }} />
             <button type="button" className="btn-primary" onClick={async () => {
               const keys = forexApiLines.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-              const res = await fetch('/api/admin/settings', {
+              const res = await adminFetch('/api/admin/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
                 body: JSON.stringify({ forex_webhook_token: forexWebhook, forex_api_keys: JSON.stringify(keys) })

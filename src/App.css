@@ -8,6 +8,29 @@
   background-color: var(--bg-main);
 }
 
+.session-expired-banner {
+  position: sticky;
+  top: 0;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #7f1d1d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  text-align: center;
+}
+
+.session-expired-banner strong {
+  font-size: 14px;
+}
+
+.session-expired-banner span {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
 /* Área de membros / EAD */
 .app-member-shell {
   background: var(--bg-main);

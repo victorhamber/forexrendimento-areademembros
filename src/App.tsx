@@ -150,6 +150,7 @@ function App() {
   const [mountedTabs, setMountedTabs] = useState<Set<MemberTab>>(() => new Set([readStoredMemberTab()]))
   const profileLoadedRef = useRef(false)
   const sessionAlertShownRef = useRef(false)
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState<string | null>(null)
   const setActiveTab = (tab: MemberTab) => {
     setActiveTabState(tab)
     sessionStorage.setItem(MEMBER_TAB_KEY, tab)
@@ -184,6 +185,8 @@ function App() {
     setUserEmail(email)
     localStorage.setItem('contentpro_userId', id)
     localStorage.setItem('contentpro_userEmail', email)
+    setSessionExpiredMessage(null)
+    sessionAlertShownRef.current = false
   }
 
   const handleLogout = useCallback(() => {
@@ -200,12 +203,30 @@ function App() {
     if (!stillLoggedIn) return
     if (!sessionAlertShownRef.current) {
       sessionAlertShownRef.current = true
-      alert(tr.session_expired)
+      setSessionExpiredMessage(tr.session_expired)
     }
     handleLogout()
   }, [userId, tr.session_expired, handleLogout])
 
   useEffect(() => registerMemberSessionHandler(handleSessionExpired), [handleSessionExpired])
+
+  // Ao abrir o app: se o token já expirou, volta para o login imediatamente
+  useEffect(() => {
+    if (!userId) return
+    if (!checkLocalMemberToken()) return
+  }, [userId])
+
+  // Revalida sessão a cada 60s enquanto a aba estiver aberta
+  useEffect(() => {
+    if (!userId) return
+    const tick = () => {
+      if (document.visibilityState === 'hidden') return
+      if (!checkLocalMemberToken()) return
+      void memberFetch('/api/profile', { headers: authHeaders() })
+    }
+    const id = window.setInterval(tick, 60_000)
+    return () => window.clearInterval(id)
+  }, [userId])
 
   const fetchData = () => {
     if (!userId) {
@@ -341,7 +362,17 @@ function App() {
   }
 
   if (!userId) {
-    return <Login onLogin={handleLogin} lang={lang} setLang={setLang} />
+    return (
+      <>
+        {sessionExpiredMessage && (
+          <div className="session-expired-banner" role="alert">
+            <strong>{sessionExpiredMessage}</strong>
+            <span>Entre novamente para continuar usando a área de membros.</span>
+          </div>
+        )}
+        <Login onLogin={handleLogin} lang={lang} setLang={setLang} />
+      </>
+    )
   }
 
   const memberNavItems: { tab: MemberTab; Icon: LucideIcon; label: string }[] = [

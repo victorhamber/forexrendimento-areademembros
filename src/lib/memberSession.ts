@@ -50,7 +50,11 @@ export function notifySessionExpired(reason: SessionExpiredReason = 'unauthorize
 export async function memberFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const res = await fetch(input, init);
   if (res.status === 401) {
-    notifySessionExpired('unauthorized');
+    const hadSession =
+      !!localStorage.getItem(MEMBER_TOKEN_KEY) || !!localStorage.getItem(MEMBER_USER_ID_KEY);
+    if (hadSession) {
+      notifySessionExpired('unauthorized');
+    }
   }
   return res;
 }

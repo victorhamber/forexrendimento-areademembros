@@ -9,8 +9,7 @@ export function resolveUserId(req: Request): string | null {
     const v = verifyUserToken(tok);
     return v ? v.userId : null;
   }
-  const x = req.headers['x-user-id'];
-  if (typeof x === 'string' && x.length > 0) return x;
+  // Sem JWT válido não autentica — evita sessão “fantasma” só com x-user-id
   return null;
 }
 

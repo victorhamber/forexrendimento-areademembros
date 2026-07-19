@@ -45,6 +45,7 @@ import { validateHotmartWebhookAuth } from './lib/hotmartWebhookAuth.js';
 import { formatPrismaError } from './lib/prismaErrors.js';
 import { createLicenseWebhookRawLog, repairAutoincrementSequences } from './lib/repairSequences.js';
 import {
+  enhanceBuilderPageHtml,
   findBuilderPageBySlug,
   isBuilderPagePublished,
   loadBuilderPages,
@@ -328,7 +329,7 @@ app.get('/api/public/pages/:slug', async (req, res) => {
       return;
     }
 
-    res.status(200).type('text/html; charset=utf-8').send(page.html);
+    res.status(200).type('text/html; charset=utf-8').send(enhanceBuilderPageHtml(page.html, page.slug));
   } catch {
     res.status(500).type('text/plain; charset=utf-8').send('Erro ao carregar página.');
   }
@@ -1524,7 +1525,7 @@ if (fs.existsSync(distPath)) {
       const pages = await loadBuilderPages(prisma);
       const page = findBuilderPageBySlug(pages, builderSlug);
       if (page?.html?.trim() && isBuilderPagePublished(page)) {
-        return res.status(200).type('text/html; charset=utf-8').send(page.html);
+        return res.status(200).type('text/html; charset=utf-8').send(enhanceBuilderPageHtml(page.html, page.slug));
       }
     }
 

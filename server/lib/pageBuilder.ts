@@ -233,3 +233,59 @@ export async function resetPageBuilder(prisma: PrismaClient) {
   });
   return { removed: result.count };
 }
+
+const DEFAULT_PAGE_BRAND_TITLE = 'Forex Rendimento';
+const PLACEHOLDER_TITLES = /^(nova\s*p[aá]gina|new\s*page|untitled|sem\s*t[ií]tulo)$/i;
+
+function titleFromSlug(slug: string): string {
+  const cleaned = normalizeBuilderSlug(slug).replace(/[-_/]+/g, ' ').trim();
+  if (!cleaned) return DEFAULT_PAGE_BRAND_TITLE;
+  const pretty = cleaned
+    .split(/\s+/)
+    .map((w) => {
+      if (/^(ea|fr|mt5|pwa|html|api)$/i.test(w)) return w.toUpperCase();
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join(' ');
+  return `${pretty} | ${DEFAULT_PAGE_BRAND_TITLE}`;
+}
+
+const FAVICON_SNIPPET = [
+  '<link rel="icon" href="/favicon.ico?v=2" sizes="any" />',
+  '<link rel="icon" type="image/jpeg" href="/fivicon.jpg?v=2" />',
+  '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />',
+].join('\n    ');
+
+/**
+ * Ajusta título/favicon das páginas do construtor no momento do serve,
+ * para páginas antigas que ainda têm "Nova Página" / sem ícone da marca.
+ */
+export function enhanceBuilderPageHtml(html: string, slug: string): string {
+  let out = String(html || '');
+  if (!out.trim()) return out;
+
+  const desiredTitle = titleFromSlug(slug);
+  const titleMatch = out.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleMatch) {
+    const current = String(titleMatch[1] || '').replace(/\s+/g, ' ').trim();
+    if (!current || PLACEHOLDER_TITLES.test(current)) {
+      out = out.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${desiredTitle}</title>`);
+    }
+  } else if (/<head[\s>]/i.test(out)) {
+    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    <title>${desiredTitle}</title>`);
+  }
+
+  // Remove favicons antigos/errados e injeta o da marca
+  out = out.replace(
+    /<link\b[^>]*rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi,
+    ''
+  );
+  out = out.replace(/<link\b[^>]*rel=["']apple-touch-icon["'][^>]*>\s*/gi, '');
+  if (/<\/head>/i.test(out)) {
+    out = out.replace(/<\/head>/i, `    ${FAVICON_SNIPPET}\n  </head>`);
+  } else if (/<head([^>]*)>/i.test(out)) {
+    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    ${FAVICON_SNIPPET}`);
+  }
+
+  return out;
+}

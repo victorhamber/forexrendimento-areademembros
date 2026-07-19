@@ -58,7 +58,10 @@ const DEFAULT_BUILDER_HTML = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nova Página</title>
+    <title>Forex Rendimento</title>
+    <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+    <link rel="icon" type="image/jpeg" href="/fivicon.jpg?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f6f8fb; color: #0f172a; }
       .hero { max-width: 900px; margin: 48px auto; background: #fff; border-radius: 16px; padding: 36px; box-shadow: 0 10px 25px rgba(2, 6, 23, 0.08); }

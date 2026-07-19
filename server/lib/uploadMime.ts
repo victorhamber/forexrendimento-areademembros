@@ -81,6 +81,30 @@ export function detectMediaKind(
   return 'arquivo';
 }
 
+/**
+ * Remove o prefixo único do multer (`timestamp-random-`) do nome no disco,
+ * para o download sair com nome limpo (ex.: EATREND.ex5).
+ */
+export function cleanStoredUploadFilename(storedName: string): string {
+  const base = path.basename(String(storedName || '').trim());
+  if (!base) return 'arquivo';
+  const cleaned = base.replace(/^\d{10,}-\d+-/, '');
+  return cleaned || base;
+}
+
+/** Nome amigável para Content-Disposition / atributo download. */
+export function resolveFriendlyDownloadName(
+  preferredName: string | null | undefined,
+  storedOrUrl: string | null | undefined
+): string {
+  const preferred = path.basename(String(preferredName || '').trim());
+  if (preferred && !/^\d{10,}-\d+-/.test(preferred)) return preferred;
+  const fromStored = cleanStoredUploadFilename(String(storedOrUrl || ''));
+  // Se veio URL /uploads/..., pega só o arquivo
+  const onlyFile = fromStored.includes('/') ? path.basename(fromStored) : fromStored;
+  return onlyFile || preferred || 'arquivo';
+}
+
 /** Nome seguro no disco preservando extensão (.webp, etc.). */
 export function safeUploadFilename(originalname: string, mimetype?: string): string {
   const decoded = decodeUploadOriginalName(originalname);

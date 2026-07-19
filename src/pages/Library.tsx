@@ -10,6 +10,16 @@ interface LibraryProps {
   authHeaders?: (json?: boolean) => Record<string, string>;
 }
 
+function buildAuthHeaders(authHeaders?: LibraryProps['authHeaders']): Record<string, string> {
+  if (authHeaders) return authHeaders();
+  const tok = localStorage.getItem('contentpro_token');
+  const userId = localStorage.getItem('contentpro_userId');
+  const headers: Record<string, string> = {};
+  if (userId) headers['x-user-id'] = userId;
+  if (tok) headers['Authorization'] = `Bearer ${tok}`;
+  return headers;
+}
+
 export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
   const tr = t(lang);
   const [downloads, setDownloads] = useState<
@@ -24,16 +34,10 @@ export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
     }>
   >([]);
   const [loadingDownloads, setLoadingDownloads] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   useEffect(() => {
-    const h = authHeaders ? authHeaders() : (() => {
-      const tok = localStorage.getItem('contentpro_token');
-      const userId = localStorage.getItem('contentpro_userId');
-      const headers: Record<string, string> = {};
-      if (userId) headers['x-user-id'] = userId;
-      if (tok) headers['Authorization'] = `Bearer ${tok}`;
-      return headers;
-    })();
+    const h = buildAuthHeaders(authHeaders);
     memberFetch('/api/me/downloads', { headers: h })
       .then(r => r.json())
       .then((d: unknown) => {
@@ -44,6 +48,39 @@ export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
       .catch(() => setDownloads([]))
       .finally(() => setLoadingDownloads(false));
   }, [authHeaders]);
+
+  const handleDownload = async (row: (typeof downloads)[number]) => {
+    if (!row.downloadUrl || downloadingId != null) return;
+    setDownloadingId(row.id);
+    try {
+      const res = await memberFetch(row.downloadUrl, { headers: buildAuthHeaders(authHeaders) });
+      if (!res.ok) {
+        alert(tr.downloads_error || 'Falha ao baixar o arquivo.');
+        return;
+      }
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = (await res.json()) as { redirectUrl?: string };
+        if (data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+          return;
+        }
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = row.downloadFileName || 'arquivo';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      alert(tr.downloads_error || 'Falha ao baixar o arquivo.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (!loadingDownloads && downloads.length === 0) {
     return (
@@ -81,9 +118,14 @@ export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
                 <span className="download-meta-item">{row.downloadFileName || 'Arquivo'}</span>
               </div>
               {row.downloadUrl ? (
-                <a className="download-btn" href={row.downloadUrl} download target="_blank" rel="noopener noreferrer">
-                  <FileDown size={18} /> Baixar
-                </a>
+                <button
+                  type="button"
+                  className="download-btn"
+                  disabled={downloadingId === row.id}
+                  onClick={() => void handleDownload(row)}
+                >
+                  <FileDown size={18} /> {downloadingId === row.id ? '…' : 'Baixar'}
+                </button>
               ) : (
                 <button type="button" className="download-btn" disabled>
                   <FileDown size={18} /> Indisponível

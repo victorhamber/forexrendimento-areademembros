@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import type { PrismaClient } from '@prisma/client';
 import { resolveUserId } from '../auth/resolveUser.js';
 import { validateLicenseHandler } from '../forex/licenseService.js';
@@ -6,6 +9,24 @@ import { invalidateLicenseCacheForEmail } from '../lib/licenseValidationCache.js
 import { checkRateLimit } from '../lib/rateLimitMem.js';
 import { resolveOwnedProductIds, resolveOwnedSystemIds, resolveProductForLicense } from '../lib/licenseProductMatch.js';
 import { assertDesafioAccountAllowed } from '../lib/desafioAccountCheck.js';
+import { resolveUploadDirectory } from '../lib/uploadDir.js';
+import { resolveFriendlyDownloadName, resolveStoredMediaMime } from '../lib/uploadMime.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function getUploadDir(): string {
+  return resolveUploadDirectory(path.join(__dirname, '../../uploads'));
+}
+
+function resolveLocalUploadPath(downloadUrl: string): string | null {
+  const raw = String(downloadUrl || '').trim();
+  if (!raw) return null;
+  const match = raw.match(/\/uploads\/([^/?#]+)/i);
+  if (!match) return null;
+  const filePath = path.join(getUploadDir(), path.basename(decodeURIComponent(match[1])));
+  if (!fs.existsSync(filePath)) return null;
+  return filePath;
+}
 
 export function registerMemberApiRoutes(app: express.Application, prisma: PrismaClient) {
   app.get('/api/me/licenses', async (req, res) => {
@@ -144,8 +165,58 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
         downloadVersion: true
       }
     });
-    const downloads = downloadableProducts.filter((p) => ownedProductIds.has(p.id));
+    const downloads = downloadableProducts
+      .filter((p) => ownedProductIds.has(p.id))
+      .map((p) => ({
+        ...p,
+        downloadFileName: resolveFriendlyDownloadName(p.downloadFileName, p.downloadUrl),
+        // Link autenticado com nome limpo no download (evita timestamp-id-arquivo.ex5)
+        downloadUrl: `/api/me/downloads/${p.id}/file`,
+      }));
     res.json({ downloads });
+  });
+
+  app.get('/api/me/downloads/:productId/file', async (req, res) => {
+    const userId = resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const productId = Number(req.params.productId);
+    if (!Number.isFinite(productId)) return res.status(400).json({ error: 'Produto inválido.' });
+
+    const now = new Date();
+    const activeLicenses = await prisma.license.findMany({
+      where: {
+        email: user.email.toLowerCase(),
+        statusLicenca: 'ativa',
+        OR: [{ dataExpiracao: null }, { dataExpiracao: { gte: now } }],
+      },
+      select: { systemId: true, offerCode: true, plano: true },
+    });
+    const catalogProducts = await prisma.product.findMany({
+      select: { id: true, systemId: true, offerCode: true, plano: true },
+    });
+    const ownedProductIds = resolveOwnedProductIds(activeLicenses, catalogProducts);
+    if (!ownedProductIds.has(productId)) {
+      return res.status(403).json({ error: 'Você não tem acesso a este download.' });
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { downloadUrl: true, downloadFileName: true },
+    });
+    if (!product?.downloadUrl) return res.status(404).json({ error: 'Arquivo não disponível.' });
+
+    const filePath = resolveLocalUploadPath(product.downloadUrl);
+    if (!filePath) {
+      // URL externa: devolve a URL para o cliente baixar
+      return res.json({ redirectUrl: product.downloadUrl });
+    }
+
+    const friendly = resolveFriendlyDownloadName(product.downloadFileName, product.downloadUrl);
+    res.type(resolveStoredMediaMime(null, friendly));
+    return res.download(filePath, friendly);
   });
 
   app.get('/api/public/carousel', async (_req, res) => {

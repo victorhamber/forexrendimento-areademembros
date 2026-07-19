@@ -55,7 +55,7 @@ export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
     try {
       const res = await memberFetch(row.downloadUrl, { headers: buildAuthHeaders(authHeaders) });
       if (!res.ok) {
-        alert(tr.downloads_error || 'Falha ao baixar o arquivo.');
+        alert('Falha ao baixar o arquivo.');
         return;
       }
       const contentType = res.headers.get('content-type') || '';
@@ -76,7 +76,7 @@ export const Library: React.FC<LibraryProps> = ({ lang, authHeaders }) => {
       a.remove();
       URL.revokeObjectURL(objectUrl);
     } catch {
-      alert(tr.downloads_error || 'Falha ao baixar o arquivo.');
+      alert('Falha ao baixar o arquivo.');
     } finally {
       setDownloadingId(null);
     }

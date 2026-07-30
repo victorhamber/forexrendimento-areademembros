@@ -1,0 +1,42 @@
+# Nada aqui entra na imagem Docker.
+# O Dockerfile faz `COPY . .`, então tudo que não for necessário para buildar
+# ou rodar o servidor deve ficar de fora — principalmente dados de clientes.
+
+# Dependências e build (refeitos dentro do container)
+node_modules
+dist
+dist-ssr
+
+# Histórico do git
+.git
+.gitignore
+
+# Backups do banco — dados pessoais de clientes
+backup - banco/
+backups/
+*.backup.json
+
+# Banco local e exportações de migração
+prisma/dev.db
+prisma/dev.db-journal
+tmp/
+
+# Uploads ficam no volume persistente, não na imagem
+uploads/
+
+# Logs e lixo de editor
+*.log
+logs
+.vscode
+.idea
+.DS_Store
+.claude
+
+# ATENÇÃO — não descomente sem antes conferir o painel do EasyPanel.
+# O `.env` local traz ADMIN_PASSWORD e JWT_SECRET, e o loadEnv.ts carrega o
+# arquivo com `override: true` (o arquivo VENCE as variáveis do painel).
+# Se a imagem depender desse arquivo hoje, tirá-lo troca a senha do admin pelo
+# fallback de teste e muda o JWT_SECRET — o que desloga todos os membros.
+# Confirme que ADMIN_PASSWORD e JWT_SECRET estão configurados no EasyPanel e
+# só então descomente a linha abaixo.
+# .env

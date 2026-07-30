@@ -22,6 +22,12 @@ import { adminAuthMiddleware } from './middleware/adminAuth.js';
 import { validateAdminCredentials } from './lib/adminPassword.js';
 import { ensureDevTestAccount } from './lib/ensureDevTestAccount.js';
 import {
+  clearLoginFailures,
+  isLoginBlocked,
+  loginBlockRetryAfterSeconds,
+  registerLoginFailure,
+} from './lib/rateLimitMem.js';
+import {
   decodeUploadOriginalName,
   detectMediaKind,
   formatMediaUploadError,
@@ -414,17 +420,70 @@ app.get('/api/public/media/:id/download', async (req, res) => {
 // ==========================================
 // USER AUTHENTICATION & ACCESS ROUTES
 // ==========================================
+
+/**
+ * Anti força-bruta do login. Só conta tentativa ERRADA e zera no acerto —
+ * quem sabe a senha nunca é bloqueado, independente de quantas vezes entrar.
+ *
+ * Duas chaves:
+ *  - IP + e-mail: trava quem fica chutando a senha de UMA conta;
+ *  - IP: trava quem varre MUITAS contas com a mesma senha (password spraying).
+ * Chavear por IP+e-mail (e não só por e-mail) evita que um atacante consiga
+ * bloquear a conta de um cliente de propósito.
+ */
+const LOGIN_WINDOW_MS = 15 * 60_000;
+const LOGIN_MAX_FAILURES_PER_ACCOUNT = 10;
+const LOGIN_MAX_FAILURES_PER_IP = 30;
+const ADMIN_LOGIN_MAX_FAILURES = 10;
+
+/** req.ip respeita o `trust proxy` e não é forjável pelo cliente (ao contrário do X-Forwarded-For cru). */
+function rateLimitIp(req: express.Request): string {
+  return String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 45);
+}
+
+function loginRateKeys(req: express.Request, email: string) {
+  const ip = rateLimitIp(req);
+  return { account: `login_${ip}_${email}`, ip: `login_ip_${ip}` };
+}
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    let user = await prisma.user.findUnique({ where: { email: String(email || '').toLowerCase().trim() } });
-    
+    const emailNormalized = String(email || '').toLowerCase().trim();
+    const keys = loginRateKeys(req, emailNormalized);
+
+    if (
+      isLoginBlocked(keys.account, LOGIN_MAX_FAILURES_PER_ACCOUNT) ||
+      isLoginBlocked(keys.ip, LOGIN_MAX_FAILURES_PER_IP)
+    ) {
+      const retryAfter = Math.max(
+        loginBlockRetryAfterSeconds(keys.account),
+        loginBlockRetryAfterSeconds(keys.ip)
+      );
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({
+        error: `Muitas tentativas de login. Aguarde ${Math.ceil(retryAfter / 60)} minuto(s) e tente novamente.`,
+      });
+    }
+
+    const registerFailure = () => {
+      registerLoginFailure(keys.account, LOGIN_WINDOW_MS);
+      registerLoginFailure(keys.ip, LOGIN_WINDOW_MS);
+    };
+    const clearFailures = () => {
+      clearLoginFailures(keys.account);
+      clearLoginFailures(keys.ip);
+    };
+
+    let user = await prisma.user.findUnique({ where: { email: emailNormalized } });
+
     // First-Time Login Logic: If user exists from Hotmart but has no password yet
     if (user && !user.password) {
       user = await prisma.user.update({
         where: { id: user.id },
         data: { password: hashMemberPassword(String(password || '')) },
       });
+      clearFailures();
       const ok = await userHasMemberAccess(prisma, user.id);
       if (!ok) {
         return res.status(401).json({ error: 'Sem acesso ativo: é necessário compra ou licença ativa.' });
@@ -435,6 +494,8 @@ app.post('/api/auth/login', async (req, res) => {
     
     // Validate Existing User (texto puro legado ou hash WordPress)
     if (user && verifyUserPassword(String(password || ''), user.password)) {
+      // Senha correta: zera o contador antes de qualquer checagem de acesso.
+      clearFailures();
       const ok = await userHasMemberAccess(prisma, user.id);
       if (!ok) {
         return res.status(401).json({ error: 'Sem acesso ativo: é necessário compra ou licença ativa.' });
@@ -442,7 +503,8 @@ app.post('/api/auth/login', async (req, res) => {
       const token = signUserToken(user.id, user.email);
       return res.json({ id: user.id, email: user.email, name: user.name, token });
     }
-    
+
+    registerFailure();
     return res.status(401).json({ error: 'E-mail ou senha incorretos. Acesso negado. Apenas usuários que já efetuaram uma compra podem acessar.' });
   } catch (err) {
     res.status(500).json({ error: 'Server Error' });
@@ -627,7 +689,9 @@ app.delete('/api/highlights/:id', async (req, res) => {
   try {
     const userId = resolveUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    await prisma.highlight.delete({ where: { id: req.params.id } });
+    // deleteMany com userId no filtro: só apaga se o grifo for de quem pediu.
+    const result = await prisma.highlight.deleteMany({ where: { id: req.params.id, userId } });
+    if (result.count === 0) return res.status(404).json({ error: 'Grifo não encontrado.' });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -735,7 +799,9 @@ app.post('/api/webhooks/hotmart', async (req, res) => {
         }
       })
       .catch(() => {});
-    return res.status(200).json({ status: 'Internal error logged', error: details });
+    // 200 de propósito: evita a Hotmart reenviar em loop. O detalhe do erro fica
+    // no WebhookLog (visível no admin) e não vai no corpo da resposta.
+    return res.status(200).json({ status: 'Internal error logged' });
   }
 });
 
@@ -746,12 +812,24 @@ app.post('/api/admin/login', (req, res) => {
   try {
     const email = String(req.body?.email ?? '');
     const password = String(req.body?.password ?? '');
+    const adminKey = `admin_login_${rateLimitIp(req)}`;
+
+    if (isLoginBlocked(adminKey, ADMIN_LOGIN_MAX_FAILURES)) {
+      const retryAfter = loginBlockRetryAfterSeconds(adminKey);
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({
+        error: `Muitas tentativas de login. Aguarde ${Math.ceil(retryAfter / 60)} minuto(s) e tente novamente.`,
+      });
+    }
+
     if (!email.trim() || !password) {
       return res.status(400).json({ error: 'Informe e-mail e senha.' });
     }
     if (!validateAdminCredentials(email, password)) {
+      registerLoginFailure(adminKey, LOGIN_WINDOW_MS);
       return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
     }
+    clearLoginFailures(adminKey);
     res.json({ token: signAdminJwt() });
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -966,9 +1044,15 @@ app.delete('/api/admin/media/:id', adminAuthMiddleware, async (req, res) => {
 // -- USER & ACCESS MANAGEMENT --
 app.get('/api/admin/users', adminAuthMiddleware, async (req, res) => {
   try {
+    // select explícito: o hash de senha não deve sair do servidor nem para o admin.
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        country: true,
+        createdAt: true,
         purchases: { include: { content: true } }
       }
     });
@@ -1570,7 +1654,35 @@ if (fs.existsSync(distPath)) {
 // ==========================================
 // SERVER INITIALIZATION
 // ==========================================
+/**
+ * Aviso de arranque: denuncia segredo faltando ANTES de virar problema.
+ * Só loga — não derruba o boot — para nunca deixar o container em crash loop.
+ */
+function warnInsecureSecrets() {
+  const isProd = process.env.NODE_ENV === 'production';
+  const jwtSecret = process.env.JWT_SECRET?.trim();
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+
+  if (!adminPassword) {
+    console.error(
+      '[SECURITY] ADMIN_PASSWORD não definida — o /admin está aceitando a senha de teste embutida no código. ' +
+        'Defina ADMIN_PASSWORD nas variáveis de ambiente AGORA.'
+    );
+  }
+  if (!jwtSecret) {
+    console.error(
+      '[SECURITY] JWT_SECRET não definida — os tokens estão sendo assinados com a senha do admin (ou com um valor padrão público). ' +
+        'Defina JWT_SECRET nas variáveis de ambiente. Atenção: ao definir, todos os membros logados precisarão entrar de novo.'
+    );
+  }
+  if (isProd && jwtSecret && adminPassword) {
+    console.log('[SECURITY] JWT_SECRET e ADMIN_PASSWORD carregados do ambiente.');
+  }
+}
+
 async function startServer() {
+  warnInsecureSecrets();
+
   try {
     const n = await repairAutoincrementSequences(prisma);
     console.log(`[db] Sequences autoincrement verificadas (${n} tabelas).`);

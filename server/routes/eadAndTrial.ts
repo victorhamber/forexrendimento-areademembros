@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { resolveUserId } from '../auth/resolveUser.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import { normalizeCsv, parseCsv, csvIncludes } from '../lib/csv.js';
+import { checkRateLimit } from '../lib/rateLimitMem.js';
 import {
   equivalentSystemIds,
   licenseMatchesProduct,
@@ -241,6 +242,15 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
   });
 
   app.post('/api/public/trial', async (req, res) => {
+    // Sem limite, dá para criar licença de teste em massa e cadastrar contas
+    // no e-mail de terceiros. 5 por hora por IP não atrapalha uso legítimo.
+    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 45);
+    if (!checkRateLimit(`trial_${ip}`, 5, 60 * 60_000)) {
+      return res
+        .status(429)
+        .json({ error: 'Muitas ativações de teste a partir deste endereço. Tente novamente mais tarde.' });
+    }
+
     const email = String(req.body?.email || '')
       .trim()
       .toLowerCase();

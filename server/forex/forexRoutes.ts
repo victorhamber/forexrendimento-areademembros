@@ -69,8 +69,31 @@ export function registerForexRoutes(app: express.Application, prisma: PrismaClie
     }
   });
 
+  /**
+   * Rota pública por contrato com o EA (ver docs/EA_API.md) — EAs já compilados
+   * não enviam X-API-Key aqui, então exigir chave quebraria os robôs em campo.
+   * Em vez disso: limite por IP e teto de tamanho do setup, que não mudam o contrato.
+   */
+  const SUBMIT_PERF_MAX_PER_MIN = 120;
+  const SETUP_FILE_MAX_CHARS = 64 * 1024; // .set real tem alguns KB
+
   router.post('/submit_performance', async (req, res) => {
-    const out = await submitPerformance(prisma, (req.body || {}) as Record<string, unknown>);
+    // req.ip (respeita `trust proxy`) em vez do clientIp() daqui: aquele lê o
+    // X-Forwarded-For cru, que o atacante forja para ganhar um balde novo a cada request.
+    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 45);
+    if (!checkRateLimit(`submit_perf_${ip}`, SUBMIT_PERF_MAX_PER_MIN, 60_000)) {
+      log('WARN', `submit_performance rate limit: ip=${ip}`);
+      return res.status(429).json({ status: 'error', message: 'Rate limit exceeded. Try again later.' });
+    }
+
+    const body = (req.body || {}) as Record<string, unknown>;
+    const setupFile = body.setup_file != null ? String(body.setup_file) : '';
+    if (setupFile.length > SETUP_FILE_MAX_CHARS) {
+      log('WARN', `submit_performance setup_file grande demais: ip=${ip}, ${setupFile.length} chars`);
+      return res.status(413).json({ status: 'error', message: 'Setup file too large.' });
+    }
+
+    const out = await submitPerformance(prisma, body);
     res.status(out.status).json(out.json);
   });
 

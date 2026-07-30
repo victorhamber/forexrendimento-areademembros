@@ -15,7 +15,18 @@ export async function validateHotmartWebhookAuth(
   const dbToken = (await getForexWebhookToken(prisma)).trim();
 
   const expectedTokens = [...new Set([envToken, dbToken].filter(Boolean))];
-  if (!expectedTokens.length) return { ok: true };
+  if (!expectedTokens.length) {
+    // Sem token configurado, qualquer um poderia criar licenças e usuários.
+    // Em produção isso é recusado; em desenvolvimento segue aberto para facilitar testes.
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        ok: false,
+        reason:
+          'Webhook sem token configurado. Defina HOTMART_HOTTOK no ambiente ou forex_webhook_token no admin.',
+      };
+    }
+    return { ok: true };
+  }
 
   if (!received) {
     return { ok: false, reason: 'Token ausente (header X-HOTTOK ou hottok)' };

@@ -46,12 +46,14 @@ function pickField(body: Record<string, unknown>, keys: string[]): string {
   return '';
 }
 
-/** Extrai email/nome/telefone no formato do embed Trajetto (fn+ln, email, phone+ddi). */
+/** Extrai email/nome/telefone no formato do webhook Trajetto e do embed do formulário. */
 function extractLeadFromBody(body: Record<string, unknown>): {
   email: string;
   name: string;
   phone: string;
 } {
+  // Payload típico do webhook Trajetto:
+  // { name, email, phone:"+55...", fields:{ fullname, email, phone, ddi }, ... }
   const email = pickField(body, [
     'email',
     'Email',
@@ -62,17 +64,25 @@ function extractLeadFromBody(body: Record<string, unknown>): {
     'e_mail',
   ]).toLowerCase();
 
-  let name = pickField(body, [
-    'name',
-    'nome',
-    'Name',
-    'Nome',
-    'fullname',
-    'full_name',
-    'fullName',
-    'buyer_name',
-    'nomecompleto',
-  ]);
+  // Preferir nome completo do fields.fullname quando existir
+  const fullFromFields =
+    body.fields && typeof body.fields === 'object' && !Array.isArray(body.fields)
+      ? String((body.fields as Record<string, unknown>).fullname || (body.fields as Record<string, unknown>).name || '').trim()
+      : '';
+
+  let name =
+    fullFromFields ||
+    pickField(body, [
+      'fullname',
+      'full_name',
+      'fullName',
+      'name',
+      'nome',
+      'Name',
+      'Nome',
+      'buyer_name',
+      'nomecompleto',
+    ]);
   if (!name) {
     const fn = pickField(body, ['fn', 'firstname', 'first_name', 'primeiro_nome', 'primeironome']);
     const ln = pickField(body, ['ln', 'lastname', 'last_name', 'sobrenome', 'ultimo_nome', 'ultimonome']);

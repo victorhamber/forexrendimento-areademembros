@@ -4771,7 +4771,7 @@ try {
                 <h4 style={{ margin: '0 0 5px 0', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>🇧🇷 Português (Brasil)</h4>
                 
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-                  Edite apenas o <strong>texto</strong> dos e-mails. O layout visual (cores, botão &quot;Acessar área de membros&quot; e cabeçalho Autofintech) é aplicado automaticamente no envio.
+                  Edite apenas o <strong>texto</strong> dos e-mails. O layout visual (cores, botão &quot;Acessar área de membros&quot; e cabeçalho Forex Rendimento) é aplicado automaticamente no envio.
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

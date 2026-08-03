@@ -49,13 +49,13 @@ const RESET_LABELS: Record<EmailLang, { badge: string; button: string; altLink: 
     badge: 'Recuperação de senha',
     button: 'Redefinir minha senha',
     altLink: 'Link alternativo',
-    footer: 'Autofintech · Mensagem automática, por favor não responda.',
+    footer: 'Forex Rendimento · Mensagem automática, por favor não responda.',
   },
   es: {
     badge: 'Recuperación de contraseña',
     button: 'Restablecer contraseña',
     altLink: 'Enlace alternativo',
-    footer: 'Autofintech · Mensaje automático, no responda.',
+    footer: 'Forex Rendimento · Mensaje automático, no responda.',
   },
 };
 
@@ -63,12 +63,12 @@ const WELCOME_LABELS: Record<EmailLang, { button: string; altLink: string; foote
   pt: {
     button: 'Acessar área de membros',
     altLink: 'Link alternativo',
-    footer: 'Autofintech · Mensagem automática, por favor não responda.',
+    footer: 'Forex Rendimento · Mensagem automática, por favor não responda.',
   },
   es: {
     button: 'Acceder al área de miembros',
     altLink: 'Enlace alternativo',
-    footer: 'Autofintech · Mensaje automático, no responda.',
+    footer: 'Forex Rendimento · Mensaje automático, no responda.',
   },
 };
 
@@ -125,7 +125,7 @@ function emailShell(contentHtml: string, footer: string): string {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
           <tr>
             <td style="background:#0f172a;padding:28px 32px;text-align:center;">
-              <p style="margin:0;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:-0.02em;">Autofintech</p>
+              <p style="margin:0;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:-0.02em;">Forex Rendimento</p>
             </td>
           </tr>
           <tr>

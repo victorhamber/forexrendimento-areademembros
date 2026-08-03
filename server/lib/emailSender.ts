@@ -44,7 +44,7 @@ export async function sendTransactionalEmail(
       return { ok: false, to, from: '', error: msg, skipped: true };
     }
 
-    const senderName = (await getSetting(prismaClient, 'sender_name')) || 'Autofintech';
+    const senderName = (await getSetting(prismaClient, 'sender_name')) || 'Forex Rendimento';
     const senderEmail = normalizeEmail((await getSetting(prismaClient, 'sender_email')) || 'noreply@example.com');
     const from = `${senderName} <${senderEmail}>`;
 

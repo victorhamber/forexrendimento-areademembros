@@ -551,7 +551,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       reset_link: resetLink,
     });
 
-    const subject = lang === 'es' ? 'Recuperación de contraseña - Autofintech' : 'Recuperação de senha - Autofintech';
+    const subject = lang === 'es' ? 'Recuperación de contraseña - Forex Rendimento' : 'Recuperação de senha - Forex Rendimento';
     await sendEmail(prisma, user.email, subject, html);
 
     res.json({ success: true });
@@ -1224,7 +1224,7 @@ app.post('/api/admin/email-settings/test', adminAuthMiddleware, async (req, res)
 
     const appUrl = getAppUrl();
     const html = `<p style="font-family:sans-serif;font-size:15px;color:#334155;">
-      Este é um e-mail de teste da área de membros Autofintech.<br><br>
+      Este é um e-mail de teste da área de membros Forex Rendimento.<br><br>
       <strong>Destinatário configurado:</strong> ${to}<br>
       Se você recebeu esta mensagem nesta caixa de entrada, o envio para compradores está funcionando.
     </p>
@@ -1235,7 +1235,7 @@ app.post('/api/admin/email-settings/test', adminAuthMiddleware, async (req, res)
     const result = await sendTransactionalEmail(
       prisma,
       to,
-      'Teste de e-mail — Autofintech Área de Membros',
+      'Teste de e-mail — Forex Rendimento Área de Membros',
       html
     );
 

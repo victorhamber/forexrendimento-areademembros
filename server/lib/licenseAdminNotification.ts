@@ -57,7 +57,7 @@ function buildLicenseTable(license: LicenseSnapshot, extraRows = ''): string {
 }
 
 function wrapHtml(title: string, body: string): string {
-  return `<!DOCTYPE html><html><body style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f8fafc;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:24px"><h1 style="margin:0 0 16px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h1>${body}<p style="margin:24px 0 0;font-size:12px;color:#94a3b8">Notificação interna — Área de Membros Autofintech</p></div></body></html>`;
+  return `<!DOCTYPE html><html><body style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f8fafc;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:24px"><h1 style="margin:0 0 16px;font-size:18px;color:#0f172a">${escapeHtml(title)}</h1>${body}<p style="margin:24px 0 0;font-size:12px;color:#94a3b8">Notificação interna — Área de Membros Forex Rendimento</p></div></body></html>`;
 }
 
 export function expiryDateChanged(

@@ -45,7 +45,9 @@ export async function sendWelcomeEmail(
   });
 
   const subject =
-    lang === 'es' ? 'Bienvenido(a) a Autofintech — tu acceso está listo' : 'Bem-vindo(a) à Autofintech — seu acesso está pronto';
+    lang === 'es'
+      ? 'Bienvenido(a) a Forex Rendimento — tu acceso está listo'
+      : 'Bem-vindo(a) à Forex Rendimento — seu acesso está pronto';
 
   const result = await sendTransactionalEmail(prismaClient, recipient, subject, html);
   if (!result.ok && !result.skipped) {

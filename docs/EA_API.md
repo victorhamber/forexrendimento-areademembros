@@ -26,22 +26,51 @@ Base URL de exemplo: `https://seu-dominio.com` — todas as rotas abaixo são re
 - `email` formato válido.
 - `numero_conta` mínimo 3 caracteres.
 - `system_id` obrigatório (string).
+- **Auto-bind (1ª vez):** se existir licença elegível ativa com `numeroConta` vazio, o servidor grava a conta enviada pelo EA e segue a validação. Se a conta já estiver preenchida e for diferente, **não** sobrescreve (mismatch — troca só pelo painel).
 
 **Respostas (igual intenção do PHP):**
 
 | Situação | HTTP | Body |
 |----------|------|------|
-| Licença ativa e não expirada | 200 | `{"status":"success","message":"Licença válida.","data_expiracao":"2026-01-01T00:00:00.000Z"}` |
+| Licença ativa e não expirada | 200 | `{"status":"success","message":"Licença válida.","data_expiracao":"...","account_bound":false}` |
+| 1ª vinculação automática da conta | 200 | `{"status":"success","message":"Licença válida. Conta MetaTrader vinculada automaticamente.","account_bound":true,...}` |
 | Licença expirada (status `expirada`) | 403 | `{"status":"error","message":"Licença expirada."}` |
+| Conta não confere com a do painel | 403 | `{"status":"error","message":"A conta MetaTrader não confere..."}` |
 | Inválida / inativa / não encontrada | 403 | `{"status":"error","message":"Licença inválida ou inativa."}` |
 | API Key ausente ou inválida | 403 | `{"status":"error","message":"Unauthorized: invalid or missing X-API-Key"}` |
 | Rate limit (60 req/min por IP) | 429 | `{"status":"error","message":"Rate limit exceeded. Try again later."}` |
 
-**Cache:** combinação email+conta+system_id fica em cache em memória por **2 dias** (alinhado à revalidação periódica do EA). Erros ficam em cache por 60 s.
+**Cache:** combinação email+conta+system_id fica em cache em memória por **2 dias** (alinhado à revalidação periódica do EA). Erros ficam em cache por 60 s. Auto-bind invalida o cache do e-mail.
 
 **Revalidação no EA:** validação imediata ao iniciar no gráfico; depois, a cada **2 dias** (desativações por reembolso/chargeback vêm via webhook Hotmart, não por polling).
 
-**Idempotência:** não se aplica (read-only).
+**Idempotência:** não se aplica (read-only na validação; auto-bind só escreve se `numeroConta` estava vazio).
+
+---
+
+## POST `/api/webhooks/tash` (teste gratuito)
+
+Endpoint **separado** do Hotmart. Só ativa licença de teste/desafio do Product ID configurado em Admin (`tash_webhook_product_id`). Nunca ativa anual/vitalício/mensal.
+
+**Auth:** header `X-Webhook-Token` ou `X-Tash-Token` (valor = Setting `tash_webhook_token`).
+
+**Body (JSON):**
+
+```json
+{
+  "email": "lead@email.com",
+  "name": "Nome",
+  "phone": "11999999999"
+}
+```
+
+Aliases aceitos: `nome`, `telefone`, etc.
+
+**Resposta sucesso:** `{"status":"success","message":"Licença de teste ativada.","eventId":"tash_...","licenseId":123}`
+
+**Settings:** `tash_webhook_token`, `tash_webhook_product_id` (Admin → Webhooks / Segurança EA).
+
+O webhook Hotmart **não é alterado** por este fluxo.
 
 ---
 

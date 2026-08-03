@@ -181,16 +181,11 @@ export async function validateLicenseHandler(
   });
 
   let license: License | null = null;
+  let accountBound = false;
 
   if (Number.isFinite(licenseId)) {
     const byId = allForEmail.find((l) => l.id === licenseId) ?? null;
-    if (byId) {
-      const denial = assertStrictLicenseAccess(byId, products, system_id, numero_conta);
-      if (denial) {
-        cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
-        logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
-        return denial;
-      }
+    if (byId && filterLicensesForValidation([byId], products, system_id).length) {
       license = byId;
     }
   }
@@ -214,23 +209,38 @@ export async function validateLicenseHandler(
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
-      const denial = resolveLicenseDenial(eligible as License[], numero_conta);
-      if (denial) {
-        cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
-        logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
-        return denial;
+      // Primeira vez: licença elegível sem conta → o EA vincula automaticamente.
+      const unbound = eligible.filter((l) => {
+        if (String(l.numeroConta || '').trim()) return false;
+        const st = String(l.statusLicenca || '').toLowerCase();
+        return st === ACTIVE || st === EXPIRED;
+      });
+      if (unbound.length === 1) {
+        license = unbound[0] as License;
+      } else if (unbound.length > 1) {
+        const result = {
+          status: 400,
+          json: {
+            status: 'error',
+            message:
+              'Você tem mais de uma licença sem conta vinculada para este produto. Vincule cada licença manualmente no painel.',
+          },
+        };
+        cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
+        logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+        return result;
+      } else {
+        const denial = resolveLicenseDenial(eligible as License[], numero_conta);
+        if (denial) {
+          cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
+          logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
+          return denial;
+        }
       }
     }
   }
 
   if (license) {
-    const denial = assertStrictLicenseAccess(license, products, system_id, numero_conta);
-    if (denial) {
-      cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
-      logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
-      return denial;
-    }
-
     const desafioDenial = await assertDesafioAccountAllowed(prisma, license, numero_conta, products);
     if (!desafioDenial.ok) {
       const result = {
@@ -240,6 +250,23 @@ export async function validateLicenseHandler(
       cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
+    }
+
+    if (!String(license.numeroConta || '').trim()) {
+      license = await prisma.license.update({
+        where: { id: license.id },
+        data: { numeroConta: numero_conta },
+      });
+      accountBound = true;
+      invalidateLicenseCacheForEmail(email);
+      log('INFO', `Auto-bind conta MT5: email=${email} license=${license.id} account=${numero_conta}`);
+    }
+
+    const denial = assertStrictLicenseAccess(license, products, system_id, numero_conta);
+    if (denial) {
+      cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
+      logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
+      return denial;
     }
   }
 
@@ -271,8 +298,11 @@ export async function validateLicenseHandler(
           status: 200,
           json: {
             status: 'success',
-            message: 'Licença válida.',
+            message: accountBound
+              ? 'Licença válida. Conta MetaTrader vinculada automaticamente.'
+              : 'Licença válida.',
             data_expiracao: license.dataExpiracao?.toISOString() ?? null,
+            account_bound: accountBound,
           },
         };
       }

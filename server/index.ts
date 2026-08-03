@@ -14,6 +14,7 @@ import { registerForexRoutes } from './forex/forexRoutes.js';
 import { processLicenseWebhook } from './forex/webhookLicenseProcessor.js';
 import { registerMemberApiRoutes } from './routes/memberApi.js';
 import { registerEadAndTrialRoutes } from './routes/eadAndTrial.js';
+import { registerTashWebhookRoutes } from './routes/tashWebhook.js';
 import { registerAdminForexRoutes } from './routes/adminForex.js';
 import { startScheduledJobs } from './jobs/scheduler.js';
 import { userHasMemberAccess } from './lib/userAccess.js';
@@ -192,6 +193,7 @@ app.use(express.json({ limit: '2mb' }));
 
 registerForexRoutes(app, prisma);
 registerMemberApiRoutes(app, prisma);
+registerTashWebhookRoutes(app, prisma);
 registerEadAndTrialRoutes(app, prisma);
 startScheduledJobs(prisma);
 

@@ -25,6 +25,7 @@ export type LicenseAdminNotifySource =
   | 'webhook'
   | 'ea_validation'
   | 'trial'
+  | 'tash_webhook'
   | 'webhook_retry';
 
 function formatDateBr(d: Date | null | undefined): string {

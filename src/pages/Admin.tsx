@@ -298,8 +298,10 @@ export const Admin: React.FC = () => {
     appUrl: string;
     webhookBaseUrl: string;
     hotmartWebhook: string;
+    tashWebhook: string;
     forexWebhook: string;
     alternateHotmartWebhooks: string[];
+    alternateTashWebhooks: string[];
   } | null>(null);
 
   // -- COURSES (EAD) STATE --
@@ -445,6 +447,8 @@ export const Admin: React.FC = () => {
   const [shortLinkForm, setShortLinkForm] = useState(emptyShortLinkForm);
   const [forexWebhook, setForexWebhook] = useState('');
   const [forexApiLines, setForexApiLines] = useState('');
+  const [tashWebhookToken, setTashWebhookToken] = useState('');
+  const [tashWebhookProductId, setTashWebhookProductId] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState('');
   const [testEmailSending, setTestEmailSending] = useState(false);
@@ -1471,6 +1475,8 @@ export const Admin: React.FC = () => {
       if (res.ok) {
         const s = await res.json();
         setForexWebhook(s.forex_webhook_token || '');
+        setTashWebhookToken(s.tash_webhook_token || '');
+        setTashWebhookProductId(s.tash_webhook_product_id || '');
         try {
           const keys = JSON.parse(s.forex_api_keys || '[]');
           setForexApiLines(Array.isArray(keys) ? keys.join('\n') : '');
@@ -4481,8 +4487,89 @@ export const Admin: React.FC = () => {
                 <li><strong>Compra Aprovada:</strong> O sistema cria o usuário automaticamente e libera o livro correspondente ao <code>Código da Oferta</code></li>
                 <li><strong>Reembolso/Cancelamento:</strong> O acesso ao livro é revogado automaticamente</li>
                 <li>O <strong>Código da Oferta</strong> na Hotmart deve corresponder ao produto configurado para liberação automática</li>
+                <li><strong>Hotmart é genérico:</strong> ativa qualquer plano (teste, anual, vitalício…) conforme o produto/oferta cadastrado</li>
               </ul>
             </div>
+          </div>
+
+          <div className="admin-form" style={{ marginTop: 24 }}>
+            <h3><Webhook size={18} style={{ verticalAlign: 'middle', marginRight: '8px' }}/>Webhook Tash (teste gratuito)</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+              Endpoint exclusivo para ativar <strong>somente</strong> licença de teste (7 dias).
+              Não ativa anual nem vitalício. Escolha o produto de teste abaixo e use o token em Segurança EA.
+              Payload esperado: <code>email</code>, <code>name</code>/<code>nome</code>, <code>phone</code>/<code>telefone</code>.
+              Auth: header <code>X-Webhook-Token</code> (ou <code>X-Tash-Token</code>).
+            </p>
+
+            <label>URL do Webhook Tash</label>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <input
+                type="text"
+                readOnly
+                value={webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', cursor: 'text' }}
+              />
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  const url = webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`;
+                  navigator.clipboard.writeText(url);
+                  alert('URL copiada!');
+                }}
+              >
+                <Copy size={16} /> Copiar
+              </button>
+            </div>
+            {webhookUrls && (webhookUrls.alternateTashWebhooks?.length ?? 0) > 1 && (
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                URLs alternativas:{' '}
+                {webhookUrls.alternateTashWebhooks.map((u: string) => (
+                  <code key={u} style={{ display: 'block', marginTop: '4px' }}>{u}</code>
+                ))}
+              </p>
+            )}
+
+            <label style={{ marginTop: 16, display: 'block' }}>Produto de teste a ativar</label>
+            <select
+              value={tashWebhookProductId}
+              onChange={(e) => setTashWebhookProductId(e.target.value)}
+              style={{ width: '100%', marginTop: 8 }}
+            >
+              <option value="">— Selecione um produto (plano teste/desafio) —</option>
+              {products
+                .filter((p) => {
+                  const plano = String(p.plano || '').toLowerCase();
+                  return plano.includes('teste') || plano.includes('desafio');
+                })
+                .map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    #{p.id} — {p.productName} ({p.plano})
+                  </option>
+                ))}
+            </select>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+              Token do webhook Tash: configure e salve em <strong>Segurança EA</strong>.
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ marginTop: 12 }}
+              onClick={async () => {
+                const res = await adminFetch('/api/admin/settings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                  body: JSON.stringify({
+                    tash_webhook_product_id: tashWebhookProductId,
+                    tash_webhook_token: tashWebhookToken,
+                  }),
+                });
+                if (res.ok) alert('Configuração Tash salva');
+                else alert('Erro ao salvar');
+              }}
+            >
+              Salvar produto Tash
+            </button>
           </div>
 
           <div className="admin-table-container">
@@ -5478,22 +5565,50 @@ export const Admin: React.FC = () => {
         <div className="admin-content">
           <div className="admin-form">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Key size={20} /> Segurança EA / Webhook</h3>
-            <label>Token do webhook (Hotmart / header hottok)</label>
+            <label>Token do webhook Hotmart (header hottok)</label>
             <input type="password" value={forexWebhook} onChange={e => setForexWebhook(e.target.value)} />
-            <label>API Keys para validação (uma por linha)</label>
+            <label style={{ marginTop: 12, display: 'block' }}>Token do webhook Tash (header X-Webhook-Token)</label>
+            <input type="password" value={tashWebhookToken} onChange={e => setTashWebhookToken(e.target.value)} />
+            <label style={{ marginTop: 12, display: 'block' }}>Produto Tash (ID — só teste/desafio)</label>
+            <select
+              value={tashWebhookProductId}
+              onChange={(e) => setTashWebhookProductId(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="">— Selecione —</option>
+              {products
+                .filter((p) => {
+                  const plano = String(p.plano || '').toLowerCase();
+                  return plano.includes('teste') || plano.includes('desafio');
+                })
+                .map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    #{p.id} — {p.productName} ({p.plano})
+                  </option>
+                ))}
+            </select>
+            <label style={{ marginTop: 12, display: 'block' }}>API Keys para validação (uma por linha)</label>
             <textarea rows={6} value={forexApiLines} onChange={e => setForexApiLines(e.target.value)} style={{ width: '100%', fontFamily: 'monospace' }} />
             <button type="button" className="btn-primary" onClick={async () => {
               const keys = forexApiLines.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
               const res = await adminFetch('/api/admin/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                body: JSON.stringify({ forex_webhook_token: forexWebhook, forex_api_keys: JSON.stringify(keys) })
+                body: JSON.stringify({
+                  forex_webhook_token: forexWebhook,
+                  forex_api_keys: JSON.stringify(keys),
+                  tash_webhook_token: tashWebhookToken,
+                  tash_webhook_product_id: tashWebhookProductId,
+                })
               });
               if (res.ok) alert('Salvo');
               else alert('Erro ao salvar');
             }}>Salvar</button>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 12 }}>
-              URL do webhook de licenças: <code>{webhookUrls?.forexWebhook || (typeof window !== 'undefined' ? `${window.location.origin}/api/forex-rendimento/v1/webhook` : '')}</code>
+              URL webhook Hotmart (licenças): <code>{webhookUrls?.forexWebhook || (typeof window !== 'undefined' ? `${window.location.origin}/api/forex-rendimento/v1/webhook` : '')}</code>
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              URL webhook Tash (teste): <code>{webhookUrls?.tashWebhook || (typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/tash` : '')}</code>
             </p>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
               Ver arquivo no projeto: <code>docs/EA_API.md</code>

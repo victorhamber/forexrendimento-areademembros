@@ -117,12 +117,12 @@ const translations = {
     // ── Minhas licenças (EA / robô) ──
     validation_title: 'Minhas Licenças',
     validation_intro:
-      'Cadastre aqui o número da conta MetaTrader de cada produto antes de abrir o robô no gráfico. O EA só conecta se o e-mail, o produto e a conta baterem com o que estiver salvo abaixo.',
+      'Na primeira vez que você abrir o robô no gráfico com o e-mail da licença, a conta MetaTrader pode ser vinculada automaticamente. Para trocar de conta depois, cadastre o novo número aqui. O EA só conecta se e-mail, produto e conta baterem com o que estiver salvo.',
     validation_steps_title: 'Como liberar o robô',
-    validation_step_1: 'Clique em Cadastrar conta (ou Editar) na licença do produto que você comprou.',
-    validation_step_2: 'Informe o número da conta MT5 em que o robô será usado e salve.',
+    validation_step_1: 'Opcional na 1ª vez: abra o robô no gráfico com o e-mail da licença — a conta MT5 pode ser vinculada sozinha se ainda estiver vazia.',
+    validation_step_2: 'Para trocar de conta (ou cadastrar manualmente), clique em Cadastrar conta / Editar, informe o número MT5 e salve.',
     validation_step_3:
-      'Abra o robô nessa mesma conta, com o mesmo e-mail desta área de membros. Sem cadastrar a conta aqui, o robô não valida.',
+      'Use sempre o mesmo e-mail desta área de membros. Depois da primeira vinculação, só o painel altera a conta — o robô não sobrescreve.',
     validation_col_email: 'Email',
     validation_col_mt5: 'Conta MetaTrader',
     validation_col_product: 'Nome do Produto',
@@ -381,12 +381,12 @@ const translations = {
     // ── Mis licencias ──
     validation_title: 'Mis Licencias',
     validation_intro:
-      'Registra aquí el número de cuenta MetaTrader de cada producto antes de abrir el robot en el gráfico. El EA solo conecta si el e-mail, el producto y la cuenta coinciden con lo guardado abajo.',
+      'La primera vez que abras el robot en el gráfico con el e-mail de la licencia, la cuenta MetaTrader puede vincularse automáticamente. Para cambiar de cuenta después, registra el nuevo número aquí. El EA solo conecta si e-mail, producto y cuenta coinciden con lo guardado.',
     validation_steps_title: 'Cómo activar el robot',
-    validation_step_1: 'Haz clic en Registrar cuenta (o Editar) en la licencia del producto que compraste.',
-    validation_step_2: 'Indica el número de cuenta MT5 donde usarás el robot y guarda.',
+    validation_step_1: 'Opcional la 1ª vez: abre el robot en el gráfico con el e-mail de la licencia — la cuenta MT5 puede vincularse sola si aún está vacía.',
+    validation_step_2: 'Para cambiar de cuenta (o registrar manualmente), haz clic en Registrar cuenta / Editar, indica el número MT5 y guarda.',
     validation_step_3:
-      'Abre el robot en esa misma cuenta, con el mismo e-mail de esta área de miembros. Sin registrar la cuenta aquí, el robot no valida.',
+      'Usa siempre el mismo e-mail de esta área de miembros. Tras la primera vinculación, solo el panel cambia la cuenta — el robot no sobrescribe.',
     validation_col_email: 'Email',
     validation_col_mt5: 'Cuenta MetaTrader',
     validation_col_product: 'Nombre del Producto',

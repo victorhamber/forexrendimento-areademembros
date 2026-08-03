@@ -16,6 +16,16 @@ export async function getForexWebhookToken(prisma: PrismaClient): Promise<string
   return row?.value?.trim() || '';
 }
 
+export async function getTashWebhookToken(prisma: PrismaClient): Promise<string> {
+  const row = await prisma.setting.findUnique({ where: { key: 'tash_webhook_token' } });
+  return row?.value?.trim() || '';
+}
+
+export async function getTashWebhookProductId(prisma: PrismaClient): Promise<string> {
+  const row = await prisma.setting.findUnique({ where: { key: 'tash_webhook_product_id' } });
+  return row?.value?.trim() || '';
+}
+
 export async function setForexApiKeys(prisma: PrismaClient, keys: string[]) {
   await prisma.setting.upsert({
     where: { key: 'forex_api_keys' },

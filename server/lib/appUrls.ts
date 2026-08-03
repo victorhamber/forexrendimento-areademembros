@@ -29,9 +29,11 @@ export function getWebhookUrls() {
     appUrl,
     webhookBaseUrl,
     hotmartWebhook: `${webhookBaseUrl}/api/webhooks/hotmart`,
+    tashWebhook: `${webhookBaseUrl}/api/webhooks/tash`,
     forexWebhook: `${webhookBaseUrl}/api/forex-rendimento/v1/webhook`,
     /** Ambos os domínios apontam para o mesmo app — qualquer um funciona se o DNS/proxy estiver ok. */
     alternateHotmartWebhooks: bases.map((b) => `${b}/api/webhooks/hotmart`),
+    alternateTashWebhooks: bases.map((b) => `${b}/api/webhooks/tash`),
     alternateForexWebhooks: bases.map((b) => `${b}/api/forex-rendimento/v1/webhook`),
   };
 }

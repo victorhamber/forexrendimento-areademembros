@@ -7,7 +7,6 @@ import { normalizeCsv, parseCsv } from '../lib/csv.js';
 import { isDesafioPlan, isPaidUpgradePlan } from '../lib/desafioLicenseRules.js';
 import { grantContentAccessForSystem } from '../forex/licenseService.js';
 import { fireLicenseCreatedNotify } from '../lib/licenseAdminNotification.js';
-import { sendWelcomeEmail } from '../lib/welcomeEmail.js';
 import { isPrismaUniqueViolation } from '../lib/prismaErrors.js';
 import { createLicenseWebhookRawLog } from '../lib/repairSequences.js';
 
@@ -265,8 +264,8 @@ export function registerTashWebhookRoutes(app: express.Application, prisma: Pris
         });
       }
 
-      const { user, isNewUser } = await ensureUser(prisma, email, name, phone);
-      void user;
+      // Tash: cria usuário/licença sem e-mail de boas-vindas — o lead fica fora do fluxo da área de membros.
+      await ensureUser(prisma, email, name, phone);
 
       const eventId = `tash_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const plano = String(product.plano || 'teste').toLowerCase().trim() || 'teste';
@@ -286,28 +285,8 @@ export function registerTashWebhookRoutes(app: express.Application, prisma: Pris
           dataExpiracao: null,
         },
       });
+      // Notifica só gestão interna; nunca envia boas-vindas ao lead do Tash.
       fireLicenseCreatedNotify(prisma, created, 'tash_webhook');
-
-      let welcomeEmailNote = '';
-      const passwordForMail = isNewUser
-        ? 'Mudar123@'
-        : '(use a senha já cadastrada ou recupere em Esqueci minha senha)';
-      try {
-        const mail = await sendWelcomeEmail(prisma, email, name || null, passwordForMail, null);
-        if (mail.ok) {
-          welcomeEmailNote = ` Boas-vindas enviada para ${mail.to}.`;
-          log('INFO', `Tash: e-mail de boas-vindas enviado para ${mail.to}`);
-        } else if (mail.skipped) {
-          welcomeEmailNote = ' Boas-vindas não enviada (Resend não configurado).';
-          log('WARN', `Tash: boas-vindas não enviada para ${email}: ${mail.error}`);
-        } else {
-          welcomeEmailNote = ` Boas-vindas falhou: ${mail.error}`;
-          log('ERROR', `Tash: falha ao enviar boas-vindas para ${email}: ${mail.error}`);
-        }
-      } catch (err) {
-        welcomeEmailNote = ` Boas-vindas falhou: ${err instanceof Error ? err.message : String(err)}`;
-        log('ERROR', `Tash: falha ao enviar e-mail de boas-vindas para ${email}: ${err}`);
-      }
 
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + 10);
@@ -331,10 +310,10 @@ export function registerTashWebhookRoutes(app: express.Application, prisma: Pris
       }
 
       await prisma.licenseWebhookRawLog.update({ where: { id: logRow.id }, data: { processed: true } });
-      log('INFO', `Webhook Tash: licença teste criada email=${email} product=${product.id} event=${eventId}`);
+      log('INFO', `Webhook Tash: licença teste criada email=${email} product=${product.id} event=${eventId} (sem e-mail ao usuário)`);
       return res.status(200).json({
         status: 'success',
-        message: `Licença de teste ativada.${welcomeEmailNote}`,
+        message: 'Licença de teste ativada.',
         eventId,
         licenseId: created.id,
       });

@@ -4498,19 +4498,31 @@ export const Admin: React.FC = () => {
               Endpoint exclusivo para ativar <strong>somente</strong> licença de teste (7 dias). Não ativa anual nem vitalício.
             </p>
             <div style={{ marginTop: 8, marginBottom: 16, padding: 15, background: 'rgba(37,99,235,0.08)', borderRadius: 8, border: '1px solid rgba(37,99,235,0.25)' }}>
-              <h4 style={{ color: 'var(--accent-primary)', marginBottom: 10 }}>Como integrar com o formulário Trajetto</h4>
+              <h4 style={{ color: 'var(--accent-primary)', marginBottom: 10 }}>Formulário Trajetto → liberar licença de teste</h4>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0 0 10px' }}>
+                O embed da Trajetto monta um JSON com <code>email</code>, <code>fn</code>+<code>ln</code> e <code>phone</code> (+DDI)
+                e envia para <code>api.trajettu.com/.../submit</code>. Nosso endpoint <strong>já aceita exatamente esse payload</strong>.
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0 0 10px' }}>
+                Como o formulário simples não tem webhook nativo, acrescente <strong>no script do embed</strong>
+                (logo após montar o <code>data</code>, antes ou junto do fetch da Trajetto) este segundo envio:
+              </p>
+              <pre style={{ fontSize: 11, overflow: 'auto', padding: 12, background: 'rgba(0,0,0,0.35)', borderRadius: 6, color: '#e2e8f0', margin: '0 0 10px' }}>{`// Libera licença de teste (área de membros)
+try {
+  await fetch('${webhookUrls?.tashWebhook || 'https://app.forexrendimento.com/api/webhooks/tash'}?token=${tashWebhookToken || 'SEU_TOKEN'}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+} catch (_e) {}`}</pre>
               <ol style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-                <li>O embed do formulário já envia para a Trajetto (<code>api.trajettu.com/.../submit</code>) — <strong>não</strong> altere o HTML do form.</li>
-                <li>Na Trajetto, no formulário / automação, cadastre um <strong>webhook de saída</strong> apontando para a URL abaixo.</li>
-                <li>Cole a URL <strong>com o token na query</strong> (a Trajetto costuma não enviar header customizado):
-                  <code style={{ display: 'block', marginTop: 6 }}>…/api/webhooks/tash?token=SEU_TOKEN</code>
-                </li>
-                <li>O payload do form já traz <code>email</code>, <code>fn</code>+<code>ln</code> (ou <code>fullname</code>) e <code>phone</code> — nosso endpoint aceita esse formato.</li>
-                <li>Escolha abaixo o produto de teste e configure o token em Segurança EA.</li>
+                <li>Salve o token e o produto de teste abaixo (ou em Segurança EA).</li>
+                <li>Copie o trecho acima (já com a URL) e cole no <code>handleTrkSubmit</code> do formulário.</li>
+                <li>O <code>data</code> do form vai direto para nós — sem mudar os campos do HTML.</li>
               </ol>
             </div>
 
-            <label>URL do Webhook (cole na Trajetto)</label>
+            <label>URL do Webhook (referência)</label>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '6px 0 8px' }}>
               Use a URL <strong>com token</strong> (substitua pelo token salvo em Segurança EA):
             </p>

@@ -52,19 +52,24 @@ Base URL de exemplo: `https://seu-dominio.com` — todas as rotas abaixo são re
 
 Endpoint **separado** do Hotmart. Só ativa licença de teste/desafio do Product ID configurado em Admin (`tash_webhook_product_id`). Nunca ativa anual/vitalício/mensal.
 
-**Auth:** header `X-Webhook-Token` ou `X-Tash-Token` (valor = Setting `tash_webhook_token`).
+**Uso com formulário Trajetto:** o embed HTML envia para `api.trajettu.com/.../submit`. Na Trajetto, configure um **webhook de saída** apontando para este endpoint (não altere o HTML do form).
 
-**Body (JSON):**
+**Auth (qualquer um):**
+- Query: `?token=<tash_webhook_token>` (recomendado para Trajetto)
+- Header: `X-Webhook-Token` ou `X-Tash-Token`
+
+**Body (JSON)** — aceita formato Trajetto:
 
 ```json
 {
   "email": "lead@email.com",
-  "name": "Nome",
-  "phone": "11999999999"
+  "fn": "Nome",
+  "ln": "Sobrenome",
+  "phone": "+5511999999999"
 }
 ```
 
-Aliases aceitos: `nome`, `telefone`, etc.
+Também aceita `name`/`nome`/`fullname`, `telefone`, e objetos aninhados `fields` / `data` / `lead`.
 
 **Resposta sucesso:** `{"status":"success","message":"Licença de teste ativada.","eventId":"tash_...","licenseId":123}`
 

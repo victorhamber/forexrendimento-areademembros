@@ -4493,29 +4493,42 @@ export const Admin: React.FC = () => {
           </div>
 
           <div className="admin-form" style={{ marginTop: 24 }}>
-            <h3><Webhook size={18} style={{ verticalAlign: 'middle', marginRight: '8px' }}/>Webhook Tash (teste gratuito)</h3>
+            <h3><Webhook size={18} style={{ verticalAlign: 'middle', marginRight: '8px' }}/>Webhook Trajetto / Tash (teste gratuito)</h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-              Endpoint exclusivo para ativar <strong>somente</strong> licença de teste (7 dias).
-              Não ativa anual nem vitalício. Escolha o produto de teste abaixo e use o token em Segurança EA.
-              Payload esperado: <code>email</code>, <code>name</code>/<code>nome</code>, <code>phone</code>/<code>telefone</code>.
-              Auth: header <code>X-Webhook-Token</code> (ou <code>X-Tash-Token</code>).
+              Endpoint exclusivo para ativar <strong>somente</strong> licença de teste (7 dias). Não ativa anual nem vitalício.
             </p>
+            <div style={{ marginTop: 8, marginBottom: 16, padding: 15, background: 'rgba(37,99,235,0.08)', borderRadius: 8, border: '1px solid rgba(37,99,235,0.25)' }}>
+              <h4 style={{ color: 'var(--accent-primary)', marginBottom: 10 }}>Como integrar com o formulário Trajetto</h4>
+              <ol style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
+                <li>O embed do formulário já envia para a Trajetto (<code>api.trajettu.com/.../submit</code>) — <strong>não</strong> altere o HTML do form.</li>
+                <li>Na Trajetto, no formulário / automação, cadastre um <strong>webhook de saída</strong> apontando para a URL abaixo.</li>
+                <li>Cole a URL <strong>com o token na query</strong> (a Trajetto costuma não enviar header customizado):
+                  <code style={{ display: 'block', marginTop: 6 }}>…/api/webhooks/tash?token=SEU_TOKEN</code>
+                </li>
+                <li>O payload do form já traz <code>email</code>, <code>fn</code>+<code>ln</code> (ou <code>fullname</code>) e <code>phone</code> — nosso endpoint aceita esse formato.</li>
+                <li>Escolha abaixo o produto de teste e configure o token em Segurança EA.</li>
+              </ol>
+            </div>
 
-            <label>URL do Webhook Tash</label>
+            <label>URL do Webhook (cole na Trajetto)</label>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '6px 0 8px' }}>
+              Use a URL <strong>com token</strong> (substitua pelo token salvo em Segurança EA):
+            </p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
               <input
                 type="text"
                 readOnly
-                value={webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`}
+                value={`${webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`}?token=${tashWebhookToken || 'SEU_TOKEN'}`}
                 style={{ flex: 1, background: 'rgba(255,255,255,0.05)', cursor: 'text' }}
               />
               <button
                 type="button"
                 className="btn-primary"
                 onClick={() => {
-                  const url = webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`;
+                  const base = webhookUrls?.tashWebhook || `${window.location.origin}/api/webhooks/tash`;
+                  const url = `${base}?token=${tashWebhookToken || 'SEU_TOKEN'}`;
                   navigator.clipboard.writeText(url);
-                  alert('URL copiada!');
+                  alert(tashWebhookToken ? 'URL com token copiada!' : 'URL copiada — troque SEU_TOKEN pelo token real.');
                 }}
               >
                 <Copy size={16} /> Copiar
@@ -5567,7 +5580,7 @@ export const Admin: React.FC = () => {
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Key size={20} /> Segurança EA / Webhook</h3>
             <label>Token do webhook Hotmart (header hottok)</label>
             <input type="password" value={forexWebhook} onChange={e => setForexWebhook(e.target.value)} />
-            <label style={{ marginTop: 12, display: 'block' }}>Token do webhook Tash (header X-Webhook-Token)</label>
+            <label style={{ marginTop: 12, display: 'block' }}>Token do webhook Trajetto/Tash (query ?token= ou header X-Webhook-Token)</label>
             <input type="password" value={tashWebhookToken} onChange={e => setTashWebhookToken(e.target.value)} />
             <label style={{ marginTop: 12, display: 'block' }}>Produto Tash (ID — só teste/desafio)</label>
             <select

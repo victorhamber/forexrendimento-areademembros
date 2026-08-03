@@ -35,12 +35,70 @@ function pickField(body: Record<string, unknown>, keys: string[]): string {
     const v = body[key];
     if (v != null && String(v).trim()) return String(v).trim();
   }
-  // Nested common shapes (Tally / forms)
-  const data = body.data;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    return pickField(data as Record<string, unknown>, keys);
+  // Nested common shapes (Trajetto / forms)
+  for (const nestKey of ['data', 'fields', 'lead', 'contact', 'payload']) {
+    const nested = body[nestKey];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const found = pickField(nested as Record<string, unknown>, keys);
+      if (found) return found;
+    }
   }
   return '';
+}
+
+/** Extrai email/nome/telefone no formato do embed Trajetto (fn+ln, email, phone+ddi). */
+function extractLeadFromBody(body: Record<string, unknown>): {
+  email: string;
+  name: string;
+  phone: string;
+} {
+  const email = pickField(body, [
+    'email',
+    'Email',
+    'e-mail',
+    'E-mail',
+    'EMAIL',
+    'mail',
+    'e_mail',
+  ]).toLowerCase();
+
+  let name = pickField(body, [
+    'name',
+    'nome',
+    'Name',
+    'Nome',
+    'fullname',
+    'full_name',
+    'fullName',
+    'buyer_name',
+    'nomecompleto',
+  ]);
+  if (!name) {
+    const fn = pickField(body, ['fn', 'firstname', 'first_name', 'primeiro_nome', 'primeironome']);
+    const ln = pickField(body, ['ln', 'lastname', 'last_name', 'sobrenome', 'ultimo_nome', 'ultimonome']);
+    name = [fn, ln].filter(Boolean).join(' ').trim();
+  }
+
+  let phone = pickField(body, [
+    'phone',
+    'telefone',
+    'Phone',
+    'Telefone',
+    'cellphone',
+    'whatsapp',
+    'whats',
+    'zap',
+    'tel',
+    'celular',
+  ]);
+  if (phone && !phone.startsWith('+')) {
+    const ddi = pickField(body, ['ddi', 'DDI', 'country_code']);
+    const ddiDigits = ddi.replace(/[^0-9]/g, '') || '55';
+    const phoneDigits = phone.replace(/[^0-9]/g, '');
+    if (phoneDigits) phone = `+${ddiDigits}${phoneDigits}`;
+  }
+
+  return { email, name, phone };
 }
 
 async function ensureUser(
@@ -109,9 +167,7 @@ export function registerTashWebhookRoutes(app: express.Application, prisma: Pris
     const logRow = await createLicenseWebhookRawLog(prisma, raw, false);
 
     try {
-      const email = pickField(body, ['email', 'Email', 'e-mail', 'E-mail', 'EMAIL']).toLowerCase();
-      const name = pickField(body, ['name', 'nome', 'Name', 'Nome', 'full_name', 'buyer_name']);
-      const phone = pickField(body, ['phone', 'telefone', 'Phone', 'Telefone', 'cellphone', 'whatsapp']);
+      const { email, name, phone } = extractLeadFromBody(body);
 
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         await prisma.licenseWebhookRawLog.update({ where: { id: logRow.id }, data: { processed: true } });

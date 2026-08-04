@@ -52,27 +52,68 @@ type ProductRow = {
   productName: string | null;
 };
 
-type DenyResult = { status: number; json: { status: string; message: string } };
+/** Códigos estáveis para o EA: INACTIVE / EXPIRED / ACCOUNT_MISMATCH / NOT_FOUND removem o expert. */
+export type LicenseDenyCode =
+  | 'LICENSE_INACTIVE'
+  | 'LICENSE_EXPIRED'
+  | 'ACCOUNT_MISMATCH'
+  | 'ACCOUNT_REQUIRED'
+  | 'LICENSE_NOT_FOUND'
+  | 'LICENSE_AMBIGUOUS'
+  | 'PRODUCT_MISMATCH'
+  | 'DESAFIO_BLOCKED'
+  | 'VALIDATION_ERROR';
+
+type DenyResult = {
+  status: number;
+  json: { status: string; message: string; code: LicenseDenyCode };
+};
+
+function deny(code: LicenseDenyCode, message: string, status = 403): DenyResult {
+  return { status, json: { status: 'error', message, code } };
+}
 
 function denyAccountNotConfigured(): DenyResult {
-  return {
-    status: 403,
-    json: {
-      status: 'error',
-      message:
-        'Informe o número da conta MetaTrader no painel de validação antes de usar o robô.',
-    },
-  };
+  return deny(
+    'ACCOUNT_REQUIRED',
+    'Informe o número da conta MetaTrader no painel de validação antes de usar o robô.'
+  );
 }
 
 function denyAccountMismatch(): DenyResult {
-  return {
-    status: 403,
-    json: {
-      status: 'error',
-      message: 'A conta MetaTrader não confere com a cadastrada no painel para este produto.',
-    },
-  };
+  return deny(
+    'ACCOUNT_MISMATCH',
+    'A conta MetaTrader não confere com a cadastrada no painel para este produto.'
+  );
+}
+
+/** Cacheia sucesso e revogações definitivas. */
+function shouldCacheLicenseResult(status: number, code?: string): boolean {
+  if (status === 200) return true;
+  return (
+    code === 'LICENSE_INACTIVE' ||
+    code === 'LICENSE_EXPIRED' ||
+    code === 'ACCOUNT_MISMATCH' ||
+    code === 'LICENSE_NOT_FOUND'
+  );
+}
+
+function cacheLicenseResult(
+  email: string,
+  numero_conta: string,
+  system_id: string,
+  status: number,
+  json: { code?: string; [k: string]: unknown }
+): void {
+  if (!shouldCacheLicenseResult(status, json.code)) return;
+  cacheSetLicenseValidation(
+    email,
+    numero_conta,
+    system_id,
+    status,
+    json,
+    equivalentSystemIds(system_id)
+  );
 }
 
 function logLicenseFailure(
@@ -97,10 +138,7 @@ function assertStrictLicenseAccess(
   numero_conta: string
 ): DenyResult | null {
   if (!filterLicensesForValidation([license], products, system_id).length) {
-    return {
-      status: 403,
-      json: { status: 'error', message: 'Licença inválida ou inativa.' },
-    };
+    return deny('PRODUCT_MISMATCH', 'Licença não corresponde ao produto/system_id deste robô.');
   }
 
   const panelAccount = String(license.numeroConta || '').trim();
@@ -119,14 +157,11 @@ function resolveLicenseDenial(
     (l) => String(l.numeroConta || '').trim() === numero_conta
   );
   if (withMatchingAccount.length > 1) {
-    return {
-      status: 400,
-      json: {
-        status: 'error',
-        message:
-          'Você tem mais de uma licença ativa para este produto. Vincule cada licença manualmente no painel.',
-      },
-    };
+    return deny(
+      'LICENSE_AMBIGUOUS',
+      'Você tem mais de uma licença ativa para este produto. Vincule cada licença manualmente no painel.',
+      400
+    );
   }
   if (withMatchingAccount.length === 1) return null;
 
@@ -150,19 +185,19 @@ export async function validateLicenseHandler(
       : NaN;
 
   if (!isEmailValid(email)) {
-    const json = { status: 'error', message: 'Email format invalid.' };
-    logLicenseFailure(email, numero_conta, system_id, 400, json);
-    return { status: 400, json };
+    const result = deny('VALIDATION_ERROR', 'Email format invalid.', 400);
+    logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+    return result;
   }
   if (!numero_conta || numero_conta.length < 3) {
-    const json = { status: 'error', message: 'Account number must have at least 3 characters.' };
-    logLicenseFailure(email, numero_conta, system_id, 400, json);
-    return { status: 400, json };
+    const result = deny('VALIDATION_ERROR', 'Account number must have at least 3 characters.', 400);
+    logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+    return result;
   }
   if (!system_id) {
-    const json = { status: 'error', message: 'system_id is required.' };
-    logLicenseFailure(email, numero_conta, system_id, 400, json);
-    return { status: 400, json };
+    const result = deny('VALIDATION_ERROR', 'system_id is required.', 400);
+    logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+    return result;
   }
 
   const cacheKey = `license_validation_${email}_${numero_conta}_${system_id}`;
@@ -197,15 +232,11 @@ export async function validateLicenseHandler(
     if (resolved.kind === 'picked') {
       license = resolved.license;
     } else if (resolved.kind === 'ambiguous') {
-      const result = {
-        status: 400,
-        json: {
-          status: 'error',
-          message:
-            'Você tem mais de uma licença ativa para este produto. Vincule cada licença manualmente no painel.',
-        },
-      };
-      cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
+      const result = deny(
+        'LICENSE_AMBIGUOUS',
+        'Você tem mais de uma licença ativa para este produto. Vincule cada licença manualmente no painel.',
+        400
+      );
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     } else {
@@ -218,21 +249,18 @@ export async function validateLicenseHandler(
       if (unbound.length === 1) {
         license = unbound[0] as License;
       } else if (unbound.length > 1) {
-        const result = {
-          status: 400,
-          json: {
-            status: 'error',
-            message:
-              'Você tem mais de uma licença sem conta vinculada para este produto. Vincule cada licença manualmente no painel.',
-          },
-        };
-        cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
+        const result = deny(
+          'LICENSE_AMBIGUOUS',
+          'Você tem mais de uma licença sem conta vinculada para este produto. Vincule cada licença manualmente no painel.',
+          400
+        );
         logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
         return result;
       } else {
         const denial = resolveLicenseDenial(eligible as License[], numero_conta);
         if (denial) {
-          cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
+          // Soft denies (conta) não entram em cache longo — ver shouldCacheLicenseResult.
+          cacheLicenseResult(email, numero_conta, system_id, denial.status, denial.json);
           logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
           return denial;
         }
@@ -241,13 +269,17 @@ export async function validateLicenseHandler(
   }
 
   if (license) {
+    const st = String(license.statusLicenca || '').toLowerCase();
+    if (st === 'inativa') {
+      const result = deny('LICENSE_INACTIVE', 'Licença desativada no painel.');
+      cacheLicenseResult(email, numero_conta, system_id, result.status, result.json);
+      logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
+      return result;
+    }
+
     const desafioDenial = await assertDesafioAccountAllowed(prisma, license, numero_conta, products);
     if (!desafioDenial.ok) {
-      const result = {
-        status: 403,
-        json: { status: 'error', message: desafioDenial.message },
-      };
-      cacheSetLicenseValidation(email, numero_conta, system_id, result.status, result.json, equivalentSystemIds(system_id));
+      const result = deny('DESAFIO_BLOCKED', desafioDenial.message);
       logLicenseFailure(email, numero_conta, system_id, result.status, result.json);
       return result;
     }
@@ -264,16 +296,19 @@ export async function validateLicenseHandler(
 
     const denial = assertStrictLicenseAccess(license, products, system_id, numero_conta);
     if (denial) {
-      cacheSetLicenseValidation(email, numero_conta, system_id, denial.status, denial.json, equivalentSystemIds(system_id));
+      cacheLicenseResult(email, numero_conta, system_id, denial.status, denial.json);
       logLicenseFailure(email, numero_conta, system_id, denial.status, denial.json);
       return denial;
     }
   }
 
-  let result: { status: number; json: object };
+  let result: { status: number; json: Record<string, unknown> };
   if (license && (license.statusLicenca === ACTIVE || license.statusLicenca === EXPIRED)) {
     if (license.statusLicenca === EXPIRED) {
-      result = { status: 403, json: { status: 'error', message: 'Licença expirada.' } };
+      result = {
+        status: 403,
+        json: { status: 'error', message: 'Licença expirada.', code: 'LICENSE_EXPIRED' },
+      };
     } else {
       const now = new Date();
       // Início da contagem: só começa no primeiro "bind" do EA (validação com sucesso).
@@ -292,7 +327,10 @@ export async function validateLicenseHandler(
       if (license.dataExpiracao && license.dataExpiracao < now) {
         await prisma.license.update({ where: { id: license.id }, data: { statusLicenca: EXPIRED } });
         invalidateLicenseCacheForEmail(email);
-        result = { status: 403, json: { status: 'error', message: 'Licença expirada.' } };
+        result = {
+          status: 403,
+          json: { status: 'error', message: 'Licença expirada.', code: 'LICENSE_EXPIRED' },
+        };
       } else {
         result = {
           status: 200,
@@ -301,24 +339,41 @@ export async function validateLicenseHandler(
             message: accountBound
               ? 'Licença válida. Conta MetaTrader vinculada automaticamente.'
               : 'Licença válida.',
+            code: 'LICENSE_OK',
             data_expiracao: license.dataExpiracao?.toISOString() ?? null,
             account_bound: accountBound,
           },
         };
       }
     }
+  } else if (license && String(license.statusLicenca || '').toLowerCase() === 'inativa') {
+    result = {
+      status: 403,
+      json: { status: 'error', message: 'Licença desativada no painel.', code: 'LICENSE_INACTIVE' },
+    };
   } else {
-    result = { status: 403, json: { status: 'error', message: 'Licença inválida ou inativa.' } };
+    // Sem licença elegível para este e-mail/produto — NÃO tratar como "desativada".
+    const inactiveForProduct = filterLicensesForValidation(allForEmail, products, system_id).filter(
+      (l) => String(l.statusLicenca || '').toLowerCase() === 'inativa'
+    );
+    if (inactiveForProduct.length) {
+      result = {
+        status: 403,
+        json: { status: 'error', message: 'Licença desativada no painel.', code: 'LICENSE_INACTIVE' },
+      };
+    } else {
+      result = {
+        status: 403,
+        json: {
+          status: 'error',
+          message: 'Nenhuma licença ativa encontrada para este e-mail e produto.',
+          code: 'LICENSE_NOT_FOUND',
+        },
+      };
+    }
   }
 
-  cacheSetLicenseValidation(
-    email,
-    numero_conta,
-    system_id,
-    result.status,
-    result.json as object,
-    equivalentSystemIds(system_id)
-  );
+  cacheLicenseResult(email, numero_conta, system_id, result.status, result.json);
   logLicenseFailure(email, numero_conta, system_id, result.status, result.json as { message?: string });
   return result;
 }

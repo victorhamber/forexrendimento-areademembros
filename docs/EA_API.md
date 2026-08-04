@@ -28,21 +28,25 @@ Base URL de exemplo: `https://seu-dominio.com` — todas as rotas abaixo são re
 - `system_id` obrigatório (string).
 - **Auto-bind (1ª vez):** se existir licença elegível ativa com `numeroConta` vazio, o servidor grava a conta enviada pelo EA e segue a validação. Se a conta já estiver preenchida e for diferente, **não** sobrescreve (mismatch — troca só pelo painel).
 
-**Respostas (igual intenção do PHP):**
+**Respostas:**
 
-| Situação | HTTP | Body |
+| Situação | HTTP | Body (campo `code`) |
 |----------|------|------|
-| Licença ativa e não expirada | 200 | `{"status":"success","message":"Licença válida.","data_expiracao":"...","account_bound":false}` |
-| 1ª vinculação automática da conta | 200 | `{"status":"success","message":"Licença válida. Conta MetaTrader vinculada automaticamente.","account_bound":true,...}` |
-| Licença expirada (status `expirada`) | 403 | `{"status":"error","message":"Licença expirada."}` |
-| Conta não confere com a do painel | 403 | `{"status":"error","message":"A conta MetaTrader não confere..."}` |
-| Inválida / inativa / não encontrada | 403 | `{"status":"error","message":"Licença inválida ou inativa."}` |
+| Licença ativa e não expirada | 200 | `{"status":"success","code":"LICENSE_OK","message":"Licença válida.",...}` |
+| 1ª vinculação automática da conta | 200 | `{"status":"success","code":"LICENSE_OK","account_bound":true,...}` |
+| Licença **desativada** no painel (`inativa`) | 403 | `{"status":"error","code":"LICENSE_INACTIVE","message":"Licença desativada no painel."}` |
+| Licença **expirada** | 403 | `{"status":"error","code":"LICENSE_EXPIRED","message":"Licença expirada."}` |
+| Conta não confere com a do painel | 403 | `{"status":"error","code":"ACCOUNT_MISMATCH",...}` |
+| Conta ainda não vinculada (legado) | 403 | `{"status":"error","code":"ACCOUNT_REQUIRED",...}` |
+| Nenhuma licença ativa para e-mail/produto | 403 | `{"status":"error","code":"LICENSE_NOT_FOUND",...}` |
 | API Key ausente ou inválida | 403 | `{"status":"error","message":"Unauthorized: invalid or missing X-API-Key"}` |
 | Rate limit (60 req/min por IP) | 429 | `{"status":"error","message":"Rate limit exceeded. Try again later."}` |
 
-**Cache:** combinação email+conta+system_id fica em cache em memória por **2 dias** (alinhado à revalidação periódica do EA). Erros ficam em cache por 60 s. Auto-bind invalida o cache do e-mail.
+**EA CloseGuard:** na revalidação periódica, remove o expert com `LICENSE_INACTIVE`, `LICENSE_EXPIRED`, `ACCOUNT_MISMATCH` ou `LICENSE_NOT_FOUND` (após 3 confirmações seguidas). Falha de rede **não** derruba o robô do gráfico.
 
-**Revalidação no EA:** validação imediata ao iniciar no gráfico; depois, a cada **2 dias** (desativações por reembolso/chargeback vêm via webhook Hotmart, não por polling).
+**Cache:** sucesso e revogação definitiva (`LICENSE_INACTIVE` / `LICENSE_EXPIRED`) em memória. Erros soft (conta/produto) **não** são cacheados, para não “grudar” um bloqueio falso. Auto-bind invalida o cache do e-mail.
+
+**Revalidação no EA:** validação ao fixar no gráfico; depois a cada ~15 s (só remove se desativada/expirada).
 
 **Idempotência:** não se aplica (read-only na validação; auto-bind só escreve se `numeroConta` estava vazio).
 

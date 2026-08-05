@@ -236,6 +236,7 @@ export async function resetPageBuilder(prisma: PrismaClient) {
 
 const DEFAULT_PAGE_BRAND_TITLE = 'Forex Rendimento';
 const PLACEHOLDER_TITLES = /^(nova\s*p[aá]gina|new\s*page|untitled|sem\s*t[ií]tulo)$/i;
+const DEFAULT_OG_IMAGE_PATH = '/apple-touch-icon.png?v=2';
 
 function titleFromSlug(slug: string): string {
   const cleaned = normalizeBuilderSlug(slug).replace(/[-_/]+/g, ' ').trim();
@@ -250,41 +251,141 @@ function titleFromSlug(slug: string): string {
   return `${pretty} | ${DEFAULT_PAGE_BRAND_TITLE}`;
 }
 
+function escapeHtmlAttr(value: string): string {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function stripTagsToText(html: string): string {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Escolhe o melhor <title> (evita genérico "Forex Rendimento" / placeholders). */
+export function resolveBuilderPageTitle(html: string, slug: string): string {
+  const titles = [...String(html || '').matchAll(/<title[^>]*>([\s\S]*?)<\/title>/gi)]
+    .map((m) => String(m[1] || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const preferred = titles.filter(
+    (t) => !PLACEHOLDER_TITLES.test(t) && t.toLowerCase() !== DEFAULT_PAGE_BRAND_TITLE.toLowerCase()
+  );
+  if (preferred.length) return preferred[preferred.length - 1];
+  if (titles.length) return titles[titles.length - 1];
+  return titleFromSlug(slug);
+}
+
+/** Texto limpo do body para og:description (nunca CSS). */
+export function resolveBuilderPageDescription(html: string): string {
+  const raw = String(html || '');
+  const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  let text = stripTagsToText(bodyMatch ? bodyMatch[1] : raw);
+  text = text
+    .replace(/\{[^}]*\}/g, ' ')
+    .replace(/[.#]?[a-z0-9_-]+\s*\{/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return 'Forex Rendimento — acesso, aulas e automação.';
+  if (text.length > 180) return `${text.slice(0, 177).trim()}...`;
+  return text;
+}
+
+function absoluteUrl(origin: string, pathOrUrl: string): string {
+  const base = String(origin || '').replace(/\/+$/, '');
+  const value = String(pathOrUrl || '').trim();
+  if (!value) return base;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (!base) return value.startsWith('/') ? value : `/${value}`;
+  return `${base}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 const FAVICON_SNIPPET = [
   '<link rel="icon" href="/favicon.ico?v=2" sizes="any" />',
   '<link rel="icon" type="image/jpeg" href="/fivicon.jpg?v=2" />',
   '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />',
 ].join('\n    ');
 
+export type EnhanceBuilderPageOpts = {
+  /** Origem absoluta, ex.: https://forexrendimento.com (necessário para og:image/og:url). */
+  origin?: string;
+  /** Imagem de preview (path ou URL absoluta). */
+  imagePath?: string;
+};
+
 /**
- * Ajusta título/favicon das páginas do construtor no momento do serve,
- * para páginas antigas que ainda têm "Nova Página" / sem ícone da marca.
+ * Ajusta título/favicon/Open Graph das páginas do construtor no momento do serve.
+ * Corrige preview do WhatsApp/Telegram que vazava CSS do <style> do template.
  */
-export function enhanceBuilderPageHtml(html: string, slug: string): string {
+export function enhanceBuilderPageHtml(
+  html: string,
+  slug: string,
+  opts?: EnhanceBuilderPageOpts
+): string {
   let out = String(html || '');
   if (!out.trim()) return out;
 
-  const desiredTitle = titleFromSlug(slug);
-  const titleMatch = out.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  if (titleMatch) {
-    const current = String(titleMatch[1] || '').replace(/\s+/g, ' ').trim();
-    if (!current || PLACEHOLDER_TITLES.test(current)) {
-      out = out.replace(/<title[^>]*>[\s\S]*?<\/title>/i, `<title>${desiredTitle}</title>`);
-    }
-  } else if (/<head[\s>]/i.test(out)) {
-    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    <title>${desiredTitle}</title>`);
+  const desiredTitle = resolveBuilderPageTitle(out, slug);
+  const description = resolveBuilderPageDescription(out);
+  const origin = String(opts?.origin || '').replace(/\/+$/, '');
+  const pagePath = `/${normalizeBuilderSlug(slug)}`;
+  const pageUrl = absoluteUrl(origin, pagePath);
+  const imageUrl = absoluteUrl(origin, opts?.imagePath || DEFAULT_OG_IMAGE_PATH);
+
+  // Um único <title> limpo (o melhor disponível).
+  out = out.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, '');
+  if (/<head[\s>]/i.test(out)) {
+    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    <title>${escapeHtmlAttr(desiredTitle)}</title>`);
+  } else {
+    out = `<title>${escapeHtmlAttr(desiredTitle)}</title>\n${out}`;
   }
 
   // Remove favicons antigos/errados e injeta o da marca
+  out = out.replace(/<link\b[^>]*rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi, '');
+  out = out.replace(/<link\b[^>]*rel=["']apple-touch-icon["'][^>]*>\s*/gi, '');
+
+  // Remove metas de share antigas para reescrever limpas
   out = out.replace(
-    /<link\b[^>]*rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi,
+    /<meta\b[^>]*(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+|description)["'][^>]*>\s*/gi,
     ''
   );
-  out = out.replace(/<link\b[^>]*rel=["']apple-touch-icon["'][^>]*>\s*/gi, '');
+
+  const ogBlock = [
+    `<meta name="description" content="${escapeHtmlAttr(description)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="${escapeHtmlAttr(DEFAULT_PAGE_BRAND_TITLE)}" />`,
+    `<meta property="og:title" content="${escapeHtmlAttr(desiredTitle)}" />`,
+    `<meta property="og:description" content="${escapeHtmlAttr(description)}" />`,
+    pageUrl ? `<meta property="og:url" content="${escapeHtmlAttr(pageUrl)}" />` : '',
+    imageUrl ? `<meta property="og:image" content="${escapeHtmlAttr(imageUrl)}" />` : '',
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeHtmlAttr(desiredTitle)}" />`,
+    `<meta name="twitter:description" content="${escapeHtmlAttr(description)}" />`,
+    imageUrl ? `<meta name="twitter:image" content="${escapeHtmlAttr(imageUrl)}" />` : '',
+  ]
+    .filter(Boolean)
+    .join('\n    ');
+
+  const headExtras = `${FAVICON_SNIPPET}\n    ${ogBlock}`;
+
   if (/<\/head>/i.test(out)) {
-    out = out.replace(/<\/head>/i, `    ${FAVICON_SNIPPET}\n  </head>`);
+    out = out.replace(/<\/head>/i, `    ${headExtras}\n  </head>`);
   } else if (/<head([^>]*)>/i.test(out)) {
-    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    ${FAVICON_SNIPPET}`);
+    out = out.replace(/<head([^>]*)>/i, `<head$1>\n    ${headExtras}`);
+  } else {
+    out = `<!doctype html>\n<html lang="pt-BR"><head>\n    <meta charset="UTF-8" />\n    <title>${escapeHtmlAttr(desiredTitle)}</title>\n    ${headExtras}\n</head><body>\n${out}\n</body></html>`;
   }
 
   return out;

@@ -337,7 +337,9 @@ app.get('/api/public/pages/:slug', async (req, res) => {
       return;
     }
 
-    res.status(200).type('text/html; charset=utf-8').send(enhanceBuilderPageHtml(page.html, page.slug));
+    res.status(200).type('text/html; charset=utf-8').send(
+      enhanceBuilderPageHtml(page.html, page.slug, { origin: getMemberAppUrl() })
+    );
   } catch {
     res.status(500).type('text/plain; charset=utf-8').send('Erro ao carregar página.');
   }
@@ -1611,7 +1613,9 @@ if (fs.existsSync(distPath)) {
       const pages = await loadBuilderPages(prisma);
       const page = findBuilderPageBySlug(pages, builderSlug);
       if (page?.html?.trim() && isBuilderPagePublished(page)) {
-        return res.status(200).type('text/html; charset=utf-8').send(enhanceBuilderPageHtml(page.html, page.slug));
+        return res.status(200).type('text/html; charset=utf-8').send(
+          enhanceBuilderPageHtml(page.html, page.slug, { origin: getMemberAppUrl() })
+        );
       }
     }
 

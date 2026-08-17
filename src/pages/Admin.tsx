@@ -751,6 +751,92 @@ export const Admin: React.FC = () => {
   };
 
   const BUILDER_HEAD_INJECT_ATTR = 'data-af-head-inject';
+  const BUILDER_CSS_ASSET_SELECTOR =
+    'style, link[rel~="stylesheet"], link[rel~="preconnect"], link[rel~="preload"]';
+
+  const isDefaultBuilderStyle = (styleEl: Element) => {
+    const css = (styleEl.textContent || '').replace(/\s+/g, ' ');
+    return css.includes('.hero { max-width: 900px') && css.includes('.kicker { text-transform: uppercase');
+  };
+
+  const isBuilderCssAsset = (el: Element) => {
+    if (el.id === 'admin-builder-selection-style') return false;
+    if (el.tagName === 'STYLE') return !isDefaultBuilderStyle(el);
+    if (el.tagName !== 'LINK') return false;
+    const rel = (el.getAttribute('rel') || '').toLowerCase();
+    return rel.includes('stylesheet') || rel.includes('preconnect') || rel.includes('preload');
+  };
+
+  const parseHtmlFragment = (doc: Document, html: string) => {
+    const tpl = doc.createElement('template');
+    tpl.innerHTML = html || '';
+    return tpl;
+  };
+
+  const collectBuilderCssHtml = (root: ParentNode) =>
+    Array.from(root.querySelectorAll(BUILDER_CSS_ASSET_SELECTOR))
+      .filter((el) => isBuilderCssAsset(el))
+      .map((el) => el.outerHTML);
+
+  const uniqueHtmlParts = (parts: string[]) => {
+    const seen = new Set<string>();
+    return parts.filter((part) => {
+      const key = part.replace(/\s+/g, ' ').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const replaceBuilderCssInHead = (doc: Document, cssHtmlParts: string[]) => {
+    doc.head.querySelectorAll(BUILDER_CSS_ASSET_SELECTOR).forEach((el) => {
+      if (el.id === 'admin-builder-selection-style') return;
+      if (el.tagName === 'STYLE' && isDefaultBuilderStyle(el)) return;
+      el.remove();
+    });
+    if (!cssHtmlParts.length) return;
+    const tpl = parseHtmlFragment(doc, cssHtmlParts.join('\n'));
+    Array.from(tpl.content.querySelectorAll(BUILDER_CSS_ASSET_SELECTOR)).forEach((el) => {
+      if (!isBuilderCssAsset(el)) return;
+      doc.head.appendChild(el.cloneNode(true));
+    });
+  };
+
+  const stripCssFromHtml = (doc: Document, html: string) => {
+    const tpl = parseHtmlFragment(doc, html);
+    tpl.content.querySelectorAll(BUILDER_CSS_ASSET_SELECTOR).forEach((el) => el.remove());
+    return tpl.innerHTML.trim();
+  };
+
+  const mergeHeadAppendUnique = (doc: Document, headAppend: string) => {
+    if (!headAppend.trim()) return;
+    const tpl = parseHtmlFragment(doc, headAppend);
+    const existing = new Set(
+      Array.from(doc.head.children).map((el) => el.outerHTML.replace(/\s+/g, ' ').trim())
+    );
+    Array.from(tpl.content.children).forEach((el) => {
+      if (el.tagName === 'SCRIPT' && el.hasAttribute(BUILDER_HEAD_INJECT_ATTR)) return;
+      if (el.tagName === 'TITLE') return;
+      if (el.tagName === 'META' && (el.hasAttribute('charset') || el.getAttribute('name') === 'viewport')) return;
+      if (el.tagName === 'STYLE') return;
+      if (el.tagName === 'LINK' && isBuilderCssAsset(el)) return;
+      const sig = el.outerHTML.replace(/\s+/g, ' ').trim();
+      if (!sig || existing.has(sig)) return;
+      doc.head.appendChild(el.cloneNode(true));
+      existing.add(sig);
+    });
+  };
+
+  const applyBuilderBodyAndCss = (doc: Document, code: string) => {
+    const parsed = normalizeFullHtmlPaste(code);
+    const cssParts = uniqueHtmlParts([
+      ...collectBuilderCssHtml(parseHtmlFragment(doc, parsed.headAppend).content),
+      ...collectBuilderCssHtml(parseHtmlFragment(doc, parsed.body).content),
+    ]);
+    replaceBuilderCssInHead(doc, cssParts);
+    mergeHeadAppendUnique(doc, parsed.headAppend);
+    doc.body.innerHTML = stripCssFromHtml(doc, parsed.body);
+  };
 
   const normalizeFullHtmlPaste = (code: string): { body: string; headAppend: string } => {
     const trimmed = code.trim();
@@ -758,10 +844,10 @@ export const Admin: React.FC = () => {
       return { body: trimmed, headAppend: '' };
     }
     try {
-      const doc = new DOMParser().parseFromString(trimmed, 'text/html');
+      const parsedDoc = new DOMParser().parseFromString(trimmed, 'text/html');
       return {
-        body: doc.body.innerHTML.trim(),
-        headAppend: doc.head.innerHTML.trim(),
+        body: parsedDoc.body.innerHTML.trim(),
+        headAppend: parsedDoc.head.innerHTML.trim(),
       };
     } catch {
       return { body: trimmed, headAppend: '' };
@@ -777,28 +863,8 @@ export const Admin: React.FC = () => {
     return out;
   };
 
-  const mergeHeadAppendFromPaste = (html: string, headAppend: string) => {
-    if (!headAppend.trim()) return html;
-    try {
-      const doc = new DOMParser().parseFromString(html || DEFAULT_BUILDER_HTML, 'text/html');
-      const tpl = doc.createElement('template');
-      tpl.innerHTML = headAppend;
-      Array.from(tpl.content.children).forEach((el) => {
-        if (el.tagName === 'SCRIPT' && el.hasAttribute(BUILDER_HEAD_INJECT_ATTR)) return;
-        doc.head.appendChild(el.cloneNode(true));
-      });
-      return `<!doctype html>\n${doc.documentElement.outerHTML}`;
-    } catch {
-      return html;
-    }
-  };
-
   const buildFinalBuilderHtml = (headCode: string, bodyCode: string, baseHtml?: string) => {
-    const bodyNorm = normalizeFullHtmlPaste(bodyCode);
-    let html = setBuilderHtmlSections(baseHtml || DEFAULT_BUILDER_HTML, { body: bodyNorm.body });
-    if (bodyNorm.headAppend) {
-      html = mergeHeadAppendFromPaste(html, bodyNorm.headAppend);
-    }
+    let html = setBuilderHtmlSections(baseHtml || DEFAULT_BUILDER_HTML, { body: bodyCode });
     html = setBuilderHtmlSections(html, { head: headCode });
     return html.trim() || DEFAULT_BUILDER_HTML;
   };
@@ -807,22 +873,21 @@ export const Admin: React.FC = () => {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html || DEFAULT_BUILDER_HTML, 'text/html');
-      if (target === 'body') return doc.body.innerHTML.trim();
+      if (target === 'body') {
+        const css = collectBuilderCssHtml(doc.head).join('\n');
+        const body = stripCssFromHtml(doc, doc.body.innerHTML);
+        return [css, body].filter(Boolean).join('\n\n');
+      }
 
       const injected = Array.from(doc.head.querySelectorAll(`[${BUILDER_HEAD_INJECT_ATTR}]`));
       if (injected.length) {
         return injected.map((el) => el.outerHTML).join('\n');
       }
 
-      // Legado: scripts/links extras sem marcador
+      // Legado: scripts/metas extras sem marcador (CSS vai no campo HTML)
       const headClone = doc.head.cloneNode(true) as HTMLElement;
       headClone.querySelectorAll('meta[charset], meta[name="viewport"], title').forEach((el) => el.remove());
-      headClone.querySelectorAll('style').forEach((styleEl) => {
-        const css = (styleEl.textContent || '').replace(/\s+/g, ' ');
-        if (css.includes('.hero { max-width: 900px') && css.includes('.kicker { text-transform: uppercase')) {
-          styleEl.remove();
-        }
-      });
+      headClone.querySelectorAll(BUILDER_CSS_ASSET_SELECTOR).forEach((el) => el.remove());
       return headClone.innerHTML.trim();
     } catch {
       return '';
@@ -861,8 +926,7 @@ export const Admin: React.FC = () => {
           });
         }
       } else {
-        const bodyNorm = normalizeFullHtmlPaste(code);
-        doc.body.innerHTML = bodyNorm.body;
+        applyBuilderBodyAndCss(doc, code);
       }
       return `<!doctype html>\n${doc.documentElement.outerHTML}`;
     } catch {
@@ -5394,7 +5458,7 @@ try {
                 <button type="button" className="btn-secondary-sm" onClick={() => setBuilderStep('list')}>Voltar à lista</button>
               </div>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-                Etapa 2: cole ou edite o HTML. Scripts de rastreamento (pixel, Trajettu, GTM) vão no campo <strong>HEAD</strong>.
+                Etapa 2: cole ou edite o HTML. O CSS da página fica neste campo (para copiar e colar). Scripts de rastreamento (pixel, Trajettu, GTM) vão no campo <strong>HEAD</strong>.
                 Use <strong>Salvar e publicar</strong> para liberar a URL pública — o código do HEAD roda na página real (não só no preview).
               </p>
               <label>Área da página (head/body)</label>
@@ -5419,7 +5483,7 @@ try {
                 placeholder="Ex: pixel, GTM, scripts, metas..."
                 disabled={!builderCurrentSlug}
               />
-              <label>HTML (conteúdo da página)</label>
+              <label>HTML da página (conteúdo + CSS)</label>
               <textarea
                 rows={22}
                 value={builderBodyCodeDraft}
@@ -5429,7 +5493,7 @@ try {
                   setBuilderCodeDraft((prev) => setBuilderHtmlSections(prev, { head: builderHeadCodeDraft, body: nextBody }));
                 }}
                 style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, minHeight: 520 }}
-                placeholder="Cole aqui o HTML do conteúdo da página (body)..."
+                placeholder="Cole o HTML completo. O CSS (&lt;style&gt; e fontes) permanece ao editar e copiar."
                 disabled={!builderCurrentSlug}
               />
               <div className="admin-form-actions">

@@ -2,9 +2,9 @@ export type Lang = 'pt' | 'es';
 
 const translations = {
   pt: {
-    // ── Login (tom comercial AutoFinTech) ──
+    // ── Login (tom comercial Forex Rendimento) ──
     login_kicker: 'Área de membros',
-    login_brand_title: 'AutoFinTech',
+    login_brand_title: 'Forex Rendimento',
     login_support_text:
       'Entre com o e-mail da sua compra ou da licença ativa. Aqui você valida o robô, acompanha o ranking e baixa tudo o que está liberado no seu plano — em um só lugar.',
     login_subtitle: 'Utilize o e-mail da sua compra para acessar sua área de membros.',
@@ -20,7 +20,7 @@ const translations = {
       'Não conseguimos conectar ao servidor. Confira sua internet e tente de novo. Em ambiente local, suba a API com npm run dev:full ou npm run dev:api.',
 
     // ── Showcase ──
-    showcase_title: 'Vitrine AutoFinTech',
+    showcase_title: 'Vitrine Forex Rendimento',
     showcase_description: 'Veja o que está disponível e escolha o plano ideal para o seu operacional no Forex.',
     showcase_buy_btn: 'Quero comprar agora',
     showcase_back_btn: 'Voltar ao Login',
@@ -253,9 +253,9 @@ const translations = {
   },
 
   es: {
-    // ── Login (tono comercial AutoFinTech) ──
+    // ── Login (tono comercial Forex Rendimento) ──
     login_kicker: 'Área de miembros',
-    login_brand_title: 'AutoFinTech',
+    login_brand_title: 'Forex Rendimento',
     login_support_text:
       'Entra con el e-mail de tu compra o de tu licencia activa. Aquí validas el robot, sigues el ranking y descargas todo lo liberado en tu plano — en un solo lugar.',
     login_subtitle: 'Utiliza el e-mail de tu compra para acceder a tu área de miembros.',
@@ -271,7 +271,7 @@ const translations = {
       'No pudimos conectar con el servidor. Revisa tu internet e inténtalo de nuevo. En local, inicia la API con npm run dev:full o npm run dev:api.',
 
     // ── Showcase ──
-    showcase_title: 'Vitrina AutoFinTech',
+    showcase_title: 'Vitrina Forex Rendimento',
     showcase_description: 'Mira lo disponible y elige el plano ideal para tu operativa en Forex.',
     showcase_buy_btn: 'Quiero comprar ahora',
     showcase_back_btn: 'Volver al Login',

@@ -239,6 +239,9 @@ const translations = {
     forgot_password_sending: 'Enviando...',
     forgot_password_sent: 'Se o e-mail estiver cadastrado, você receberá um link de recuperação em instantes.',
     forgot_password_back: 'Voltar ao login',
+    forgot_password_rate_limit:
+      'Muitas tentativas de recuperação. Aguarde ou fale com o suporte pelo botão verde no canto da tela.',
+    login_support_fab_label: 'Falar com o suporte no WhatsApp',
     reset_password_title: 'Nova Senha',
     reset_password_placeholder: 'Digite sua nova senha',
     reset_password_confirm: 'Confirmar nova senha',
@@ -489,6 +492,9 @@ const translations = {
     forgot_password_sending: 'Enviando...',
     forgot_password_sent: 'Si el e-mail está registrado, recibirás un enlace de recuperación en breve.',
     forgot_password_back: 'Volver al inicio de sesión',
+    forgot_password_rate_limit:
+      'Demasiados intentos de recuperación. Espera o habla con soporte con el botón verde en la esquina.',
+    login_support_fab_label: 'Hablar con soporte por WhatsApp',
     reset_password_title: 'Nueva Contraseña',
     reset_password_placeholder: 'Escribe tu nueva contraseña',
     reset_password_confirm: 'Confirmar nueva contraseña',

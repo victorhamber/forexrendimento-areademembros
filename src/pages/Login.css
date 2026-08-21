@@ -22,21 +22,11 @@
 }
 
 .login-identity-block {
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  margin: 0 auto 12px;
-  background: transparent;
-  width: min(100%, 360px);
-}
-
-.login-brand-logo {
-  display: block;
-  width: 100%;
-  height: auto;
-  margin: 0 auto;
-  object-fit: contain;
-  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .login-kicker {
@@ -251,5 +241,44 @@
 @media (min-width: 768px) and (max-width: 1024px) {
   .login-box {
     max-width: 420px;
+  }
+}
+
+.login-support-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: #25d366;
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.login-support-fab:hover {
+  transform: translateY(-2px) scale(1.04);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 28px rgba(37, 211, 102, 0.42);
+}
+
+.login-support-fab:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .login-support-fab {
+    right: 16px;
+    bottom: 16px;
+    width: 52px;
+    height: 52px;
   }
 }

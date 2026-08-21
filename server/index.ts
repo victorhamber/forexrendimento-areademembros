@@ -23,6 +23,7 @@ import { adminAuthMiddleware } from './middleware/adminAuth.js';
 import { validateAdminCredentials } from './lib/adminPassword.js';
 import { ensureDevTestAccount } from './lib/ensureDevTestAccount.js';
 import {
+  checkRateLimit,
   clearLoginFailures,
   isLoginBlocked,
   loginBlockRetryAfterSeconds,
@@ -272,10 +273,23 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/public/contents', async (req, res) => {
   try {
-    const contents = await prisma.content.findMany({ 
+    const contents = await prisma.content.findMany({
       where: { isBonus: false },
       orderBy: { createdAt: 'desc' },
-      include: { category: true }
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        description: true,
+        coverUrl: true,
+        salesUrl: true,
+        categoryId: true,
+        category: true,
+        featuredList: true,
+        isBonus: true,
+        language: true,
+        createdAt: true,
+      },
     });
     res.json(contents);
   } catch (error) {
@@ -481,21 +495,15 @@ app.post('/api/auth/login', async (req, res) => {
 
     let user = await prisma.user.findUnique({ where: { email: emailNormalized } });
 
-    // First-Time Login Logic: If user exists from Hotmart but has no password yet
+    // Conta sem senha: não aceitar login arbitrário (takeover). Orientar recuperação.
     if (user && !user.password) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { password: hashMemberPassword(String(password || '')) },
+      registerFailure();
+      return res.status(401).json({
+        error:
+          'Sua conta ainda não tem senha definida. Use “Esqueceu sua senha?” para criar uma, ou fale com o suporte.',
       });
-      clearFailures();
-      const ok = await userHasMemberAccess(prisma, user.id);
-      if (!ok) {
-        return res.status(401).json({ error: 'Sem acesso ativo: é necessário compra ou licença ativa.' });
-      }
-      const token = signUserToken(user.id, user.email);
-      return res.json({ id: user.id, email: user.email, name: user.name, token });
     }
-    
+
     // Validate Existing User (texto puro legado ou hash WordPress)
     if (user && verifyUserPassword(String(password || ''), user.password)) {
       // Senha correta: zera o contador antes de qualquer checagem de acesso.
@@ -523,7 +531,19 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    const emailNormalized = String(email).toLowerCase().trim();
+    const ip = rateLimitIp(req);
+    const ipOk = checkRateLimit(`forgot_ip_${ip}`, 8, 60 * 60_000);
+    const emailOk = checkRateLimit(`forgot_email_${emailNormalized}`, 3, 60 * 60_000);
+    if (!ipOk || !emailOk) {
+      return res.status(429).json({
+        error:
+          'Muitas tentativas de recuperação de senha. Aguarde ou fale com o suporte pelo WhatsApp.',
+        code: 'FORGOT_RATE_LIMIT',
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: emailNormalized } });
     // Always return success to prevent email enumeration
     if (!user) return res.json({ success: true });
 
@@ -733,12 +753,23 @@ app.post('/api/wishlist/toggle', async (req, res) => {
 
 app.get('/api/contents', async (req, res) => {
   try {
-    const contents = await prisma.content.findMany({ 
+    const contents = await prisma.content.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        description: true,
+        coverUrl: true,
+        salesUrl: true,
+        categoryId: true,
         category: true,
-        _count: { select: { purchases: true } }
-      }
+        featuredList: true,
+        isBonus: true,
+        language: true,
+        createdAt: true,
+        _count: { select: { purchases: true } },
+      },
     });
     res.json(contents);
   } catch (error) {

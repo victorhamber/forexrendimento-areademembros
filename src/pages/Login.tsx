@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MessageCircle } from 'lucide-react';
 import { t } from '../i18n/translations';
 import type { Lang } from '../i18n/translations';
 import { SHOW_LANGUAGE_SWITCHER } from '../i18n/featureFlags';
@@ -18,10 +19,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [supportUrl, setSupportUrl] = useState('');
 
   // Forgot password
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
   // Reset password (from URL token)
   const [resetToken, setResetToken] = useState('');
@@ -44,6 +47,32 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
+
+  // Mesmo caminho da dashboard: /api/public/member-hero → supportUrl (Setting member_support_url)
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/public/member-hero')
+      .then((r) => r.json())
+      .then((d: { supportUrl?: string | null }) => {
+        if (cancelled) return;
+        setSupportUrl(String(d?.supportUrl || '').trim());
+      })
+      .catch(() => {
+        if (!cancelled) setSupportUrl('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openSupport = () => {
+    const url = supportUrl.trim();
+    if (!url) {
+      alert(tr.support_not_configured);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,12 +114,22 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
     e.preventDefault();
     if (!forgotEmail) return;
     setLoading(true);
+    setForgotError('');
     try {
-      await fetch('/api/auth/forgot-password', {
+      const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail })
       });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      if (res.status === 429) {
+        setForgotError(data.error || tr.forgot_password_rate_limit);
+        return;
+      }
+      if (!res.ok) {
+        setForgotError(data.error || tr.login_error_connection);
+        return;
+      }
       setForgotSent(true);
     } catch {
       alert(tr.login_error_connection);
@@ -149,14 +188,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
         )}
 
         <div className="login-identity-block">
-          <img
-            src="/logo.webp?v=1"
-            alt={tr.login_brand_title}
-            className="login-brand-logo"
-            width={360}
-            height={218}
-            decoding="async"
-          />
+          <p className="login-kicker">{tr.login_kicker}</p>
+          <h1 className="login-title-main">{tr.login_brand_title}</h1>
         </div>
 
         {/* ── LOGIN VIEW ── */}
@@ -188,7 +221,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
               <button
                 type="button"
                 className="forgot-password-link"
-                onClick={() => { setView('forgot'); setForgotSent(false); setForgotEmail(''); }}
+                onClick={() => {
+                  setView('forgot');
+                  setForgotSent(false);
+                  setForgotEmail('');
+                  setForgotError('');
+                }}
               >
                 {tr.forgot_password_link}
               </button>
@@ -214,6 +252,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
             ) : (
               <form onSubmit={handleForgotPassword} className="login-form">
                 <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '12px' }}>{tr.forgot_password_desc}</p>
+                {forgotError && (
+                  <p style={{ color: '#ef4444', fontSize: '14px', marginBottom: '8px', lineHeight: 1.45 }}>
+                    {forgotError}
+                  </p>
+                )}
                 <div className="input-group">
                   <label>{tr.login_email_label}</label>
                   <input
@@ -279,6 +322,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin, lang, setLang }) => {
           </>
         )}
       </div>
+
+      <button
+        type="button"
+        className="login-support-fab"
+        onClick={openSupport}
+        aria-label={tr.login_support_fab_label}
+        title={tr.login_support_fab_label}
+      >
+        <MessageCircle size={28} aria-hidden />
+      </button>
     </div>
   );
 };

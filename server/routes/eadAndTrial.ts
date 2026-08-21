@@ -3,13 +3,11 @@ import type { PrismaClient } from '@prisma/client';
 import { resolveUserId } from '../auth/resolveUser.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import { normalizeCsv, parseCsv, csvIncludes } from '../lib/csv.js';
-import { checkRateLimit } from '../lib/rateLimitMem.js';
 import {
   equivalentSystemIds,
   licenseMatchesProduct,
   licenseMatchesSystemGroup,
 } from '../lib/licenseProductMatch.js';
-import { fireLicenseCreatedNotify } from '../lib/licenseAdminNotification.js';
 
 function sanitizeUrl(raw: unknown): string | null {
   const s = String(raw ?? '').trim();
@@ -115,14 +113,6 @@ function computeCourseAccess(
 
 export function registerEadAndTrialRoutes(app: express.Application, prisma: PrismaClient) {
   const admin = adminAuthMiddleware;
-
-  app.get('/api/public/products', async (_req, res) => {
-    const products = await prisma.product.findMany({
-      orderBy: { id: 'asc' },
-      select: { productName: true, systemId: true, description: true, plano: true }
-    });
-    res.json(products);
-  });
 
   app.get('/api/public/courses', async (req, res) => {
     const userId = resolveUserId(req);
@@ -239,78 +229,6 @@ export function registerEadAndTrialRoutes(app: express.Application, prisma: Pris
       }
     });
     res.json(p);
-  });
-
-  app.post('/api/public/trial', async (req, res) => {
-    // Sem limite, dá para criar licença de teste em massa e cadastrar contas
-    // no e-mail de terceiros. 5 por hora por IP não atrapalha uso legítimo.
-    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 45);
-    if (!checkRateLimit(`trial_${ip}`, 5, 60 * 60_000)) {
-      return res
-        .status(429)
-        .json({ error: 'Muitas ativações de teste a partir deste endereço. Tente novamente mais tarde.' });
-    }
-
-    const email = String(req.body?.email || '')
-      .trim()
-      .toLowerCase();
-    const name = String(req.body?.name || '').trim();
-    const systemId = String(req.body?.systemId || 'TESTE_GRATUITO').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Invalid email' });
-
-    const existingLic = await prisma.license.count({ where: { email } });
-    if (existingLic > 0) return res.status(400).json({ error: 'E-mail já possui licença.' });
-
-    const trial = await prisma.trialHistory.findUnique({ where: { email_systemId: { email, systemId } } });
-    if (trial) return res.status(400).json({ error: 'Trial já utilizado para este produto.' });
-
-    const eventId = `trial_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const end = new Date();
-    end.setDate(end.getDate() + 10); // 7 dias de trial + 3 dias de tolerância
-
-    const trialLicense = await prisma.license.create({
-      data: {
-        email,
-        buyerName: name || null,
-        numeroConta: '',
-        eventId,
-        plano: 'teste',
-        statusLicenca: 'ativa',
-        dataExpiracao: end,
-        systemId,
-        dataAtivacao: new Date()
-      }
-    });
-    fireLicenseCreatedNotify(prisma, trialLicense, 'trial');
-
-    await prisma.trialHistory.create({
-      data: {
-        email,
-        systemId,
-        eventId,
-        trialEnd: end,
-        status: 'active',
-        ipAddress: req.socket.remoteAddress || undefined,
-        userAgent: String(req.headers['user-agent'] || '').slice(0, 500)
-      }
-    });
-
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      const { hashMemberPassword } = await import('../lib/verifyUserPassword.js');
-      user = await prisma.user.create({ data: { email, name: name || null, password: hashMemberPassword('Mudar123@') } });
-    }
-
-    const contents = await prisma.content.findMany({ where: { licenseSystemId: systemId } });
-    for (const c of contents) {
-      try {
-        await prisma.purchase.create({ data: { userId: user.id, contentId: c.id } });
-      } catch {
-        /* */
-      }
-    }
-
-    res.json({ success: true, message: 'Trial de 7 dias criado.', eventId });
   });
 
   app.get('/api/admin/courses', admin, async (_req, res) => {

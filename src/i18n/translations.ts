@@ -18,19 +18,6 @@ const translations = {
     login_error_fields: 'Preencha e-mail e senha.',
     login_error_connection:
       'Não conseguimos conectar ao servidor. Confira sua internet e tente de novo. Em ambiente local, suba a API com npm run dev:full ou npm run dev:api.',
-    login_trial_link: 'Quero 7 dias de teste grátis',
-    trial_title: 'Teste grátis',
-    trial_desc: 'Preencha os dados abaixo. Em poucos minutos você recebe acesso de teste por 7 dias e entra com o mesmo e-mail.',
-    trial_name_label: 'Seu nome',
-    trial_name_placeholder: 'Ex: João',
-    trial_product_label: 'Produto',
-    trial_product_placeholder: 'Selecione o produto',
-    trial_password_label: 'Crie uma senha',
-    trial_password_hint: 'A senha será definida no seu primeiro login.',
-    trial_submit: 'Liberar meu teste agora',
-    trial_loading: 'Ativando...',
-    trial_success: 'Teste grátis liberado! Agora faça login com seu e-mail e a senha criada.',
-    trial_back_login: 'Voltar ao login',
 
     // ── Showcase ──
     showcase_title: 'Vitrine AutoFinTech',
@@ -279,20 +266,6 @@ const translations = {
     login_error_fields: 'Completa el e-mail y la contraseña.',
     login_error_connection:
       'No pudimos conectar con el servidor. Revisa tu internet e inténtalo de nuevo. En local, inicia la API con npm run dev:full o npm run dev:api.',
-    login_trial_link: 'Quiero 7 días de prueba gratis',
-    trial_title: 'Prueba gratis',
-    trial_desc:
-      'Completa los datos. En pocos minutos recibes acceso de prueba por 7 días e inicias sesión con el mismo e-mail.',
-    trial_name_label: 'Tu nombre',
-    trial_name_placeholder: 'Ej: Juan',
-    trial_product_label: 'Producto',
-    trial_product_placeholder: 'Selecciona el producto',
-    trial_password_label: 'Crea una contraseña',
-    trial_password_hint: 'La contraseña se define en tu primer inicio de sesión.',
-    trial_submit: 'Liberar mi prueba ahora',
-    trial_loading: 'Activando...',
-    trial_success: '¡Prueba liberada! Ahora inicia sesión con tu e-mail y la contraseña creada.',
-    trial_back_login: 'Volver al login',
 
     // ── Showcase ──
     showcase_title: 'Vitrina AutoFinTech',

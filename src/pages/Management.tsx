@@ -291,7 +291,9 @@ export function Management({
 
       <section className="mgmt-clock">
         <div className="mgmt-clock-head">
-          <Clock3 size={18} aria-hidden />
+          <span className="mgmt-clock-badge" aria-hidden>
+            <Clock3 size={18} />
+          </span>
           <h2>{tr.mgmt_convert_title}</h2>
         </div>
         <p className="mgmt-note">
@@ -307,6 +309,7 @@ export function Management({
               ))}
             </select>
           </label>
+          <div className="mgmt-clock-actions">
           <button type="button" className="mgmt-linkish" onClick={() => setTimeZone(deviceTimeZone())}>
             {tr.mgmt_use_device}
           </button>
@@ -317,6 +320,7 @@ export function Management({
             <button type="button" className={clock === 'user' ? 'active' : ''} onClick={() => setClock('user')}>
               {tr.mgmt_clock_mine}
             </button>
+          </div>
           </div>
         </div>
         <div className="mgmt-convert-grid">

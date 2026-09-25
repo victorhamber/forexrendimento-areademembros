@@ -261,10 +261,11 @@ const translations = {
     mgmt_loading: 'Carregando histórico…',
     mgmt_empty:
       'Ainda não há histórico desta conta. Deixe o Close Guard no gráfico, com a licença válida. Os dados passam a aparecer conforme o robô opera.',
-    mgmt_convert_title: 'Converter horário',
+    mgmt_convert_title: 'Horários sincronizados',
     mgmt_convert_hint:
-      'A tabela pode ser lida no horário da corretora ou no seu. O número que você coloca em HoraInicioOperacao e HoraFimOperacao é o da corretora.',
+      'O MetaTrader informa automaticamente o horário da corretora. Escolha apenas o seu fuso para ver a conversão e alternar a leitura da tabela.',
     mgmt_offset: 'Corretora em',
+    mgmt_waiting_sync: 'aguardando o MetaTrader',
     mgmt_tz_label: 'Meu fuso',
     mgmt_use_device: 'Usar o fuso deste aparelho',
     mgmt_clock_broker: 'Horário da corretora',
@@ -553,10 +554,11 @@ const translations = {
     mgmt_loading: 'Cargando historial…',
     mgmt_empty:
       'Todavía no hay historial de esta cuenta. Deja el Close Guard en el gráfico, con la licencia válida. Los datos aparecen a medida que el robot opera.',
-    mgmt_convert_title: 'Convertir horario',
+    mgmt_convert_title: 'Horarios sincronizados',
     mgmt_convert_hint:
-      'La tabla se puede leer en el horario del bróker o en el tuyo. El número de HoraInicioOperacao y HoraFimOperacao es el del bróker.',
+      'MetaTrader informa automáticamente el horario del bróker. Elige solamente tu zona para ver la conversión y alternar la lectura de la tabla.',
     mgmt_offset: 'Bróker en',
+    mgmt_waiting_sync: 'esperando MetaTrader',
     mgmt_tz_label: 'Mi zona',
     mgmt_use_device: 'Usar la zona de este dispositivo',
     mgmt_clock_broker: 'Horario del bróker',

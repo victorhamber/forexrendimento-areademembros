@@ -6,8 +6,6 @@ import { memberFetch } from '../lib/memberSession';
 import {
   brokerWallParts,
   brokerWallToUtcMs,
-  convertBrokerClockToZone,
-  convertZoneClockToBroker,
   deviceTimeZone,
   formatOffset,
   partsInTimeZone,
@@ -78,15 +76,6 @@ function money(value: number, lang: Lang): string {
   });
 }
 
-function parseHm(value: string): { hour: number; minute: number } | null {
-  const match = /^(\d{2}):(\d{2})$/.exec(value);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return null;
-  return { hour, minute };
-}
-
 export function Management({
   lang,
   authHeaders,
@@ -105,8 +94,7 @@ export function Management({
     localStorage.getItem(CLOCK_KEY) === 'user' ? 'user' : 'broker'
   );
   const [timeZone, setTimeZone] = useState(() => localStorage.getItem(TZ_KEY) || deviceTimeZone());
-  const [fromBroker, setFromBroker] = useState('10:00');
-  const [fromMine, setFromMine] = useState('10:00');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     localStorage.setItem(CLOCK_KEY, clock);
@@ -115,6 +103,11 @@ export function Management({
   useEffect(() => {
     localStorage.setItem(TZ_KEY, timeZone);
   }, [timeZone]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams({ days: String(period) });
@@ -143,7 +136,11 @@ export function Management({
     return list;
   }, [timeZone]);
 
-  const offset = data?.brokerOffsetMin;
+  // TimeCurrent() pode estar alguns minutos atrasado quando não chega tick.
+  // Fusos de corretora são normalizados em blocos de 15 minutos.
+  const offset = data?.brokerOffsetMin == null
+    ? null
+    : Math.round(data.brokerOffsetMin / 15) * 15;
 
   const report = useMemo(() => {
     const hours = Array.from({ length: 24 }, emptyBucket);
@@ -231,17 +228,50 @@ export function Management({
     return { hours, days, bestHour, bestDay, stressHour, calmHour };
   }, [data, clock, offset, timeZone]);
 
-  const brokerToMine = useMemo(() => {
-    const hm = parseHm(fromBroker);
-    if (!hm || offset == null) return '—';
-    return convertBrokerClockToZone(hm.hour, hm.minute, offset, timeZone);
-  }, [fromBroker, offset, timeZone]);
+  const liveClocks = useMemo(() => {
+    const userFormatter = new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'pt-BR', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    const dateFormatter = new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'pt-BR', {
+      timeZone,
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    });
+    const brokerDate = offset == null ? null : new Date(nowMs + offset * 60_000);
+    return {
+      brokerTime: brokerDate
+        ? `${String(brokerDate.getUTCHours()).padStart(2, '0')}:${String(brokerDate.getUTCMinutes()).padStart(2, '0')}`
+        : '—',
+      brokerDate: brokerDate
+        ? `${String(brokerDate.getUTCDate()).padStart(2, '0')}/${String(brokerDate.getUTCMonth() + 1).padStart(2, '0')}`
+        : '—',
+      userTime: userFormatter.format(new Date(nowMs)),
+      userDate: dateFormatter.format(new Date(nowMs)),
+    };
+  }, [lang, nowMs, offset, timeZone]);
 
-  const mineToBroker = useMemo(() => {
-    const hm = parseHm(fromMine);
-    if (!hm || offset == null) return '—';
-    return convertZoneClockToBroker(hm.hour, hm.minute, offset, timeZone);
-  }, [fromMine, offset, timeZone]);
+  const hourRows = report.hours
+    .map((bucket, hour) => ({ bucket, hour }))
+    .filter(({ bucket }) =>
+      bucket.closes > 0 ||
+      bucket.floatN > 0 ||
+      bucket.floatMin != null ||
+      bucket.goalGain > 0 ||
+      bucket.goalLoss > 0
+    );
+  const dayRows = report.days
+    .map((bucket, dow) => ({ bucket, dow }))
+    .filter(({ bucket }) =>
+      bucket.closes > 0 ||
+      bucket.floatN > 0 ||
+      bucket.floatMin != null ||
+      bucket.goalGain > 0 ||
+      bucket.goalLoss > 0
+    );
 
   const symbols = data?.accounts.find((item) => item.numeroConta === (account || data?.account))?.symbols || [];
   const hasEvents = (data?.events.length || 0) > 0;
@@ -310,30 +340,30 @@ export function Management({
             </select>
           </label>
           <div className="mgmt-clock-actions">
-          <button type="button" className="mgmt-linkish" onClick={() => setTimeZone(deviceTimeZone())}>
-            {tr.mgmt_use_device}
-          </button>
-          <div className="mgmt-pills">
-            <button type="button" className={clock === 'broker' ? 'active' : ''} onClick={() => setClock('broker')}>
-              {tr.mgmt_clock_broker}
+            <button type="button" className="mgmt-linkish" onClick={() => setTimeZone(deviceTimeZone())}>
+              {tr.mgmt_use_device}
             </button>
-            <button type="button" className={clock === 'user' ? 'active' : ''} onClick={() => setClock('user')}>
-              {tr.mgmt_clock_mine}
-            </button>
-          </div>
+            <div className="mgmt-pills">
+              <button type="button" className={clock === 'broker' ? 'active' : ''} onClick={() => setClock('broker')}>
+                {tr.mgmt_clock_broker}
+              </button>
+              <button type="button" className={clock === 'user' ? 'active' : ''} onClick={() => setClock('user')}>
+                {tr.mgmt_clock_mine}
+              </button>
+            </div>
           </div>
         </div>
         <div className="mgmt-convert-grid">
-          <label>
-            {tr.mgmt_broker_time}
-            <input type="time" value={fromBroker} onChange={(e) => setFromBroker(e.target.value)} />
-            <span>{tr.mgmt_becomes} <strong>{brokerToMine}</strong> {tr.mgmt_in_my_zone}</span>
-          </label>
-          <label>
-            {tr.mgmt_my_time}
-            <input type="time" value={fromMine} onChange={(e) => setFromMine(e.target.value)} />
-            <span>{tr.mgmt_becomes} <strong>{mineToBroker}</strong> {tr.mgmt_in_broker}</span>
-          </label>
+          <div className="mgmt-live-clock">
+            <span>{tr.mgmt_broker_time}</span>
+            <strong>{liveClocks.brokerTime}</strong>
+            <small>{liveClocks.brokerDate} · {offset == null ? tr.mgmt_waiting_sync : formatOffset(offset)}</small>
+          </div>
+          <div className="mgmt-live-clock">
+            <span>{tr.mgmt_my_time}</span>
+            <strong>{liveClocks.userTime}</strong>
+            <small>{liveClocks.userDate} · {timeZone}</small>
+          </div>
         </div>
       </section>
 
@@ -385,11 +415,11 @@ export function Management({
                 </tr>
               </thead>
               <tbody>
-                {report.hours.map((bucket, hour) => (
-                  <tr key={hour}>
-                    <td>{String(hour).padStart(2, '0')}:00</td>
+                {hourRows.map(({ bucket, hour }) => (
+                  <tr key={hour} className={bucket.profit > 0 ? 'row-positive' : bucket.profit < 0 ? 'row-negative' : ''}>
+                    <td><span className="mgmt-time-chip">{String(hour).padStart(2, '0')}:00</span></td>
                     <td className={bucket.profit >= 0 ? 'pos' : 'neg'}>{bucket.closes ? money(bucket.profit, lang) : '—'}</td>
-                    <td>{bucket.closes || '—'}</td>
+                    <td><span className="mgmt-count-chip">{bucket.closes || '—'}</span></td>
                     <td>
                       {bucket.floatN
                         ? money(bucket.floatSum / bucket.floatN, lang)
@@ -418,11 +448,11 @@ export function Management({
                 </tr>
               </thead>
               <tbody>
-                {report.days.map((bucket, dow) => (
-                  <tr key={dow}>
-                    <td>{dayNames[dow]}</td>
+                {dayRows.map(({ bucket, dow }) => (
+                  <tr key={dow} className={bucket.profit > 0 ? 'row-positive' : bucket.profit < 0 ? 'row-negative' : ''}>
+                    <td><span className="mgmt-day-chip">{dayNames[dow]}</span></td>
                     <td className={bucket.profit >= 0 ? 'pos' : 'neg'}>{bucket.closes ? money(bucket.profit, lang) : '—'}</td>
-                    <td>{bucket.closes || '—'}</td>
+                    <td><span className="mgmt-count-chip">{bucket.closes || '—'}</span></td>
                     <td className="neg">{bucket.floatMin != null ? money(bucket.floatMin, lang) : '—'}</td>
                     <td>{bucket.goalGain || '—'}</td>
                     <td>{bucket.goalLoss || '—'}</td>

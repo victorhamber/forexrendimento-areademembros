@@ -23,6 +23,8 @@ type TelemetryEvent = {
   floatUsd: number;
   floatMinUsd: number;
   floatMaxUsd: number;
+  balanceUsd: number;
+  floatMinBalanceUsd: number;
   closeReason: string;
 };
 
@@ -61,12 +63,28 @@ type Bucket = {
   floatSum: number;
   floatN: number;
   floatMin: number | null;
+  floatMinBalance: number;
+  pctSum: number;
+  pctN: number;
+  drawdown: number | null;
   goalGain: number;
   goalLoss: number;
 };
 
 function emptyBucket(): Bucket {
-  return { profit: 0, closes: 0, floatSum: 0, floatN: 0, floatMin: null, goalGain: 0, goalLoss: 0 };
+  return {
+    profit: 0,
+    closes: 0,
+    floatSum: 0,
+    floatN: 0,
+    floatMin: null,
+    floatMinBalance: 0,
+    pctSum: 0,
+    pctN: 0,
+    drawdown: null,
+    goalGain: 0,
+    goalLoss: 0,
+  };
 }
 
 function money(value: number, lang: Lang): string {
@@ -74,6 +92,32 @@ function money(value: number, lang: Lang): string {
     style: 'currency',
     currency: 'USD',
   });
+}
+
+function percent(value: number, lang: Lang): string {
+  return `${value.toLocaleString(lang === 'es' ? 'es-ES' : 'pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
+/** Mesma conta do robô: flutuante negativo dividido pelo saldo. */
+function drawdownPercent(floatUsd: number, balanceUsd: number): number | null {
+  if (!(balanceUsd > 0) || !(floatUsd < 0)) return null;
+  return (-floatUsd / balanceUsd) * 100;
+}
+
+function signedFloatPercent(floatUsd: number, balanceUsd: number): number | null {
+  if (!(balanceUsd > 0)) return null;
+  return (floatUsd / balanceUsd) * 100;
+}
+
+function rememberWorstFloat(bucket: Bucket, floatUsd: number, balanceUsd: number) {
+  if (bucket.floatMin != null && floatUsd >= bucket.floatMin) return;
+  bucket.floatMin = floatUsd;
+  bucket.floatMinBalance = balanceUsd;
+  const dd = drawdownPercent(floatUsd, balanceUsd);
+  if (dd != null && (bucket.drawdown == null || dd > bucket.drawdown)) bucket.drawdown = dd;
 }
 
 export function Management({
@@ -167,25 +211,25 @@ export function Management({
         hourBucket.closes += 1;
         dayBucket.profit += ev.profitUsd;
         dayBucket.closes += 1;
+        const worstBalance = ev.floatMinBalanceUsd > 0 ? ev.floatMinBalanceUsd : ev.balanceUsd;
         if (ev.floatMinUsd !== 0 || ev.floatMaxUsd !== 0) {
-          hourBucket.floatMin = hourBucket.floatMin == null
-            ? ev.floatMinUsd
-            : Math.min(hourBucket.floatMin, ev.floatMinUsd);
-          dayBucket.floatMin = dayBucket.floatMin == null
-            ? ev.floatMinUsd
-            : Math.min(dayBucket.floatMin, ev.floatMinUsd);
+          rememberWorstFloat(hourBucket, ev.floatMinUsd, worstBalance);
+          rememberWorstFloat(dayBucket, ev.floatMinUsd, worstBalance);
         }
       } else if (ev.kind === 'float_sample') {
         hourBucket.floatSum += ev.floatUsd;
         hourBucket.floatN += 1;
-        hourBucket.floatMin = hourBucket.floatMin == null
-          ? ev.floatUsd
-          : Math.min(hourBucket.floatMin, ev.floatUsd);
         dayBucket.floatSum += ev.floatUsd;
         dayBucket.floatN += 1;
-        dayBucket.floatMin = dayBucket.floatMin == null
-          ? ev.floatUsd
-          : Math.min(dayBucket.floatMin, ev.floatUsd);
+        const signed = signedFloatPercent(ev.floatUsd, ev.balanceUsd);
+        if (signed != null) {
+          hourBucket.pctSum += signed;
+          hourBucket.pctN += 1;
+          dayBucket.pctSum += signed;
+          dayBucket.pctN += 1;
+        }
+        rememberWorstFloat(hourBucket, ev.floatUsd, ev.balanceUsd);
+        rememberWorstFloat(dayBucket, ev.floatUsd, ev.balanceUsd);
       } else if (ev.kind === 'goal_gain') {
         hourBucket.goalGain += 1;
         dayBucket.goalGain += 1;
@@ -387,7 +431,10 @@ export function Management({
             <article>
               <span>{tr.mgmt_stress_hour}</span>
               <strong>{report.stressHour ? `${String(report.stressHour.hour).padStart(2, '0')}:00` : '—'}</strong>
-              <small>{report.stressHour?.bucket.floatMin != null ? money(report.stressHour.bucket.floatMin, lang) : ''}</small>
+              <small>
+                {report.stressHour?.bucket.floatMin != null ? money(report.stressHour.bucket.floatMin, lang) : ''}
+                {report.stressHour?.bucket.drawdown != null ? ` · ${percent(report.stressHour.bucket.drawdown, lang)}` : ''}
+              </small>
             </article>
             <article>
               <span>{tr.mgmt_calm_hour}</span>
@@ -421,11 +468,21 @@ export function Management({
                     <td className={bucket.profit >= 0 ? 'pos' : 'neg'}>{bucket.closes ? money(bucket.profit, lang) : '—'}</td>
                     <td><span className="mgmt-count-chip">{bucket.closes || '—'}</span></td>
                     <td>
-                      {bucket.floatN
-                        ? money(bucket.floatSum / bucket.floatN, lang)
-                        : '—'}
+                      {bucket.floatN ? (
+                        <span className="mgmt-float-cell">
+                          <span>{money(bucket.floatSum / bucket.floatN, lang)}</span>
+                          {bucket.pctN > 0 ? <small>{percent(bucket.pctSum / bucket.pctN, lang)}</small> : null}
+                        </span>
+                      ) : '—'}
                     </td>
-                    <td className="neg">{bucket.floatMin != null ? money(bucket.floatMin, lang) : '—'}</td>
+                    <td className="neg">
+                      {bucket.floatMin != null ? (
+                        <span className="mgmt-float-cell">
+                          <span>{money(bucket.floatMin, lang)}</span>
+                          {bucket.drawdown != null ? <small>{percent(bucket.drawdown, lang)} {tr.mgmt_dd}</small> : null}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td>{bucket.goalGain || '—'}</td>
                     <td>{bucket.goalLoss || '—'}</td>
                   </tr>
@@ -453,7 +510,14 @@ export function Management({
                     <td><span className="mgmt-day-chip">{dayNames[dow]}</span></td>
                     <td className={bucket.profit >= 0 ? 'pos' : 'neg'}>{bucket.closes ? money(bucket.profit, lang) : '—'}</td>
                     <td><span className="mgmt-count-chip">{bucket.closes || '—'}</span></td>
-                    <td className="neg">{bucket.floatMin != null ? money(bucket.floatMin, lang) : '—'}</td>
+                    <td className="neg">
+                      {bucket.floatMin != null ? (
+                        <span className="mgmt-float-cell">
+                          <span>{money(bucket.floatMin, lang)}</span>
+                          {bucket.drawdown != null ? <small>{percent(bucket.drawdown, lang)} {tr.mgmt_dd}</small> : null}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td>{bucket.goalGain || '—'}</td>
                     <td>{bucket.goalLoss || '—'}</td>
                   </tr>

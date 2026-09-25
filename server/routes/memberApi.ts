@@ -135,6 +135,8 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
         floatUsd: true,
         floatMinUsd: true,
         floatMaxUsd: true,
+        balanceUsd: true,
+        floatMinBalanceUsd: true,
         closeReason: true,
         corretora: true,
       },
@@ -158,6 +160,8 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
         floatUsd: ev.floatUsd,
         floatMinUsd: ev.floatMinUsd,
         floatMaxUsd: ev.floatMaxUsd,
+        balanceUsd: ev.balanceUsd,
+        floatMinBalanceUsd: ev.floatMinBalanceUsd,
         closeReason: ev.closeReason,
       })),
     });

@@ -87,6 +87,8 @@ export async function submitTelemetry(
     const floatUsd = num(ev.float_usd);
     const floatMinUsd = num(ev.float_min_usd);
     const floatMaxUsd = num(ev.float_max_usd);
+    const balanceUsd = num(ev.balance_usd);
+    const floatMinBalanceUsd = num(ev.float_min_balance_usd);
 
     try {
       await prisma.robotTelemetryEvent.create({
@@ -105,6 +107,8 @@ export async function submitTelemetry(
           floatUsd: Number.isFinite(floatUsd) ? floatUsd : 0,
           floatMinUsd: Number.isFinite(floatMinUsd) ? floatMinUsd : 0,
           floatMaxUsd: Number.isFinite(floatMaxUsd) ? floatMaxUsd : 0,
+          balanceUsd: Number.isFinite(balanceUsd) && balanceUsd > 0 ? balanceUsd : 0,
+          floatMinBalanceUsd: Number.isFinite(floatMinBalanceUsd) && floatMinBalanceUsd > 0 ? floatMinBalanceUsd : 0,
           eventKey,
         },
       });

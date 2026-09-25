@@ -336,6 +336,10 @@ model RobotTelemetryEvent {
   floatUsd        Float    @default(0)
   floatMinUsd     Float    @default(0)
   floatMaxUsd     Float    @default(0)
+  /// Saldo da conta no momento da amostra. Drawdown = flutuante negativo / saldo.
+  balanceUsd         Float    @default(0)
+  /// Saldo no instante do pior flutuante daquela cesta.
+  floatMinBalanceUsd Float    @default(0)
   eventKey        String   @unique
   createdAt       DateTime @default(now())
 

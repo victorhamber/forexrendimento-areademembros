@@ -315,6 +315,34 @@ model MediaFolder {
   @@index([sortOrder])
 }
 
+/// Histórico enviado pelo Close Guard (por licença / conta / ativo).
+model RobotTelemetryEvent {
+  id              Int      @id @default(autoincrement())
+  email           String
+  numeroConta     String
+  systemId        String   @default("")
+  corretora       String   @default("")
+  ativo           String   @default("")
+  /// close | float_sample | goal_gain | goal_loss
+  kind            String
+  closeReason     String   @default("")
+  /// Relógio da corretora, "YYYY-MM-DDTHH:mm:ss" (sem fuso).
+  brokerTime      String
+  /// Minutos de TimeCurrent() − TimeGMT() no momento do evento.
+  brokerOffsetMin Int      @default(0)
+  /// Instante real (UTC) derivado do relógio da corretora e do offset.
+  occurredAt      DateTime
+  profitUsd       Float    @default(0)
+  floatUsd        Float    @default(0)
+  floatMinUsd     Float    @default(0)
+  floatMaxUsd     Float    @default(0)
+  eventKey        String   @unique
+  createdAt       DateTime @default(now())
+
+  @@index([email, numeroConta, occurredAt])
+  @@index([email, ativo, occurredAt])
+}
+
 model MediaAsset {
   id           String       @id @default(uuid())
   originalName String

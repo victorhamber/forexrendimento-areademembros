@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Home as HomeIcon, User as UserIcon, ShieldCheck, Trophy, GraduationCap, Download, LifeBuoy, type LucideIcon } from 'lucide-react'
+import { Home as HomeIcon, User as UserIcon, ShieldCheck, Trophy, GraduationCap, Download, LifeBuoy, LineChart, type LucideIcon } from 'lucide-react'
 import { Home } from './pages/Home'
 import { ValidationPanel } from './pages/ValidationPanel'
 import { Ranking } from './pages/Ranking'
+import { Management } from './pages/Management'
 import { Login } from './pages/Login'
 import { Admin } from './pages/Admin'
 import { Showcase } from './pages/Showcase'
@@ -26,10 +27,10 @@ import {
 } from './lib/memberSession'
 import './App.css'
 
-type MemberTab = 'home' | 'courses' | 'downloads' | 'validation' | 'ranking' | 'profile'
+type MemberTab = 'home' | 'courses' | 'downloads' | 'validation' | 'ranking' | 'management' | 'profile'
 
 const MEMBER_TAB_KEY = MEMBER_TAB_STORAGE_KEY
-const MEMBER_TABS: MemberTab[] = ['home', 'courses', 'downloads', 'validation', 'ranking', 'profile']
+const MEMBER_TABS: MemberTab[] = ['home', 'courses', 'downloads', 'validation', 'ranking', 'management', 'profile']
 
 const SHOW_RANKING = false
 
@@ -380,6 +381,7 @@ function App() {
     { tab: 'courses', Icon: GraduationCap, label: tr.nav_courses },
     { tab: 'downloads', Icon: Download, label: tr.nav_downloads },
     { tab: 'validation', Icon: ShieldCheck, label: tr.nav_validation },
+    { tab: 'management', Icon: LineChart, label: tr.nav_management },
     ...(SHOW_RANKING ? [{ tab: 'ranking' as const, Icon: Trophy, label: tr.nav_ranking }] : []),
     { tab: 'profile', Icon: UserIcon, label: tr.nav_profile },
   ]
@@ -404,6 +406,8 @@ function App() {
           ? tr.nav_downloads
         : activeTab === 'validation'
             ? tr.nav_validation
+            : activeTab === 'management'
+              ? tr.nav_management
             : activeTab === 'ranking'
               ? tr.nav_ranking
               : tr.nav_profile
@@ -502,6 +506,11 @@ function App() {
               {mountedTabs.has('validation') && userId && (
                 <div className="member-tab-panel" hidden={activeTab !== 'validation'}>
                   <ValidationPanel userId={userId} lang={lang} userEmail={userEmail} authHeaders={authHeaders} />
+                </div>
+              )}
+              {mountedTabs.has('management') && userId && (
+                <div className="member-tab-panel" hidden={activeTab !== 'management'}>
+                  <Management lang={lang} authHeaders={authHeaders} />
                 </div>
               )}
               {mountedTabs.has('ranking') && (

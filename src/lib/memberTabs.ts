@@ -1,5 +1,5 @@
 /** Abas da área de membros (links internos no texto da aula). */
-export type MemberTabLink = 'home' | 'courses' | 'downloads' | 'validation' | 'profile';
+export type MemberTabLink = 'home' | 'courses' | 'downloads' | 'validation' | 'management' | 'profile';
 
 /** Mesma chave usada em App.tsx para restaurar a aba ao abrir nova guia. */
 export const MEMBER_TAB_STORAGE_KEY = 'contentpro_member_tab';
@@ -9,6 +9,7 @@ export const MEMBER_TAB_LINK_OPTIONS: { value: MemberTabLink; label: string }[] 
   { value: 'courses', label: 'Cursos' },
   { value: 'downloads', label: 'Downloads' },
   { value: 'validation', label: 'Minhas licenças' },
+  { value: 'management', label: 'Gestão' },
   { value: 'profile', label: 'Perfil' },
 ];
 

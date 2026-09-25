@@ -8,6 +8,7 @@ import { log } from '../lib/logger.js';
 import { validateLicenseHandler } from './licenseService.js';
 import { processLicenseWebhook } from './webhookLicenseProcessor.js';
 import { submitPerformance } from './performanceSubmit.js';
+import { submitTelemetry } from './telemetrySubmit.js';
 import { getRankingResponse } from './rankingService.js';
 import { createLicenseWebhookRawLog } from '../lib/repairSequences.js';
 
@@ -76,6 +77,27 @@ export function registerForexRoutes(app: express.Application, prisma: PrismaClie
    */
   const SUBMIT_PERF_MAX_PER_MIN = 120;
   const SETUP_FILE_MAX_CHARS = 64 * 1024; // .set real tem alguns KB
+
+  router.post('/submit_telemetry', async (req, res) => {
+    const ip = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 45);
+    if (!checkRateLimit(`submit_tel_${ip}`, 30, 60_000)) {
+      log('WARN', `submit_telemetry rate limit: ip=${ip}`);
+      return res.status(429).json({ status: 'error', message: 'Rate limit exceeded. Try again later.' });
+    }
+    const apiKey = String(req.headers['x-api-key'] || '');
+    const keys = await getForexApiKeys(prisma);
+    if (!keys.length || !keys.includes(apiKey)) {
+      log('WARN', `submit_telemetry API key inválida: ip=${ip}`);
+      return res.status(403).json({ status: 'error', message: 'Unauthorized: invalid or missing X-API-Key' });
+    }
+    try {
+      const out = await submitTelemetry(prisma, (req.body || {}) as Record<string, unknown>);
+      return res.status(out.status).json(out.json);
+    } catch (e) {
+      log('ERROR', 'submit_telemetry', { err: String(e) });
+      return res.status(500).json({ status: 'error', message: 'Falha ao gravar telemetria.' });
+    }
+  });
 
   router.post('/submit_performance', async (req, res) => {
     // req.ip (respeita `trust proxy`) em vez do clientIp() daqui: aquele lê o

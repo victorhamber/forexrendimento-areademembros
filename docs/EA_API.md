@@ -111,6 +111,45 @@ O webhook Hotmart **não é alterado** por este fluxo.
 
 ---
 
+## POST `/api/forex-rendimento/v1/submit_telemetry`
+
+Envio do Close Guard para a aba **Gestão** da área de membros. Exige `X-API-Key` (a mesma de `validate_license`). A conta precisa ter licença ativa já vinculada (`email` + `numero_conta`).
+
+**Body (JSON):**
+
+```json
+{
+  "email": "aluno@email.com",
+  "numero_conta": "12345678",
+  "system_id": "",
+  "corretora": "Corretora X",
+  "broker_offset_min": 180,
+  "events": [
+    {
+      "key": "close-XAUUSD-172000-1",
+      "kind": "close",
+      "ativo": "XAUUSD",
+      "broker_time": "2026-09-25T14:35:00",
+      "profit_usd": 12.4,
+      "float_usd": 0,
+      "float_min_usd": -8.2,
+      "float_max_usd": 15.1,
+      "close_reason": "gain"
+    }
+  ]
+}
+```
+
+`kind`: `close` | `float_sample` | `goal_gain` | `goal_loss`.
+
+`broker_time` é o relógio da corretora, sem fuso. `broker_offset_min` é `TimeCurrent() - TimeGMT()` em minutos. A página converte esse par para o fuso escolhido pelo aluno.
+
+`event.key` é único. Reenvio do mesmo key não duplica a linha.
+
+**Resposta 200:** `{ "status": "success", "accepted": 1, "duplicated": 0 }`.
+
+---
+
 ## GET `/api/forex-rendimento/v1/get_ranking?period=7`
 
 `period` ∈ `7`, `15`, `30` (default 7).

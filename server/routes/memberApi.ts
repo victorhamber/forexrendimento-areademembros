@@ -56,6 +56,113 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
     res.json(withNames);
   });
 
+  app.get('/api/me/robot-stats', async (req, res) => {
+    const userId = resolveUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const email = user.email.toLowerCase();
+    const daysRaw = parseInt(String(req.query.days || '30'), 10);
+    const days = [7, 15, 30, 90].includes(daysRaw) ? daysRaw : 30;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const licenses = await prisma.license.findMany({
+      where: { email, numeroConta: { not: '' } },
+      select: { numeroConta: true },
+      orderBy: { id: 'desc' },
+    });
+
+    const grouped = await prisma.robotTelemetryEvent.groupBy({
+      by: ['numeroConta', 'ativo'],
+      where: { email, occurredAt: { gte: since } },
+    });
+
+    const accountMap = new Map<string, Set<string>>();
+    for (const lic of licenses) {
+      const conta = lic.numeroConta.trim();
+      if (conta.length < 3) continue;
+      if (!accountMap.has(conta)) accountMap.set(conta, new Set());
+    }
+    for (const row of grouped) {
+      const conta = row.numeroConta.trim();
+      if (!accountMap.has(conta)) accountMap.set(conta, new Set());
+      if (row.ativo) accountMap.get(conta)!.add(row.ativo);
+    }
+
+    const accounts = [...accountMap.entries()].map(([numeroConta, symbols]) => ({
+      numeroConta,
+      symbols: [...symbols].sort(),
+    }));
+
+    const requestedAccount = String(req.query.account || '').trim();
+    const account = accounts.some((a) => a.numeroConta === requestedAccount)
+      ? requestedAccount
+      : accounts[0]?.numeroConta || '';
+
+    const symbolOptions = accounts.find((a) => a.numeroConta === account)?.symbols || [];
+    const requestedSymbol = String(req.query.symbol || '').trim();
+    const symbol = symbolOptions.includes(requestedSymbol)
+      ? requestedSymbol
+      : symbolOptions[0] || '';
+
+    if (!account) {
+      return res.json({
+        brokerOffsetMin: null,
+        accounts: [],
+        account: '',
+        symbol: '',
+        days,
+        events: [],
+      });
+    }
+
+    const events = await prisma.robotTelemetryEvent.findMany({
+      where: {
+        email,
+        numeroConta: account,
+        occurredAt: { gte: since },
+        ...(symbol ? { ativo: symbol } : {}),
+      },
+      orderBy: { occurredAt: 'asc' },
+      take: 15000,
+      select: {
+        kind: true,
+        ativo: true,
+        brokerTime: true,
+        brokerOffsetMin: true,
+        profitUsd: true,
+        floatUsd: true,
+        floatMinUsd: true,
+        floatMaxUsd: true,
+        closeReason: true,
+        corretora: true,
+      },
+    });
+
+    const last = events.length ? events[events.length - 1] : null;
+
+    res.json({
+      brokerOffsetMin: last ? last.brokerOffsetMin : null,
+      corretora: last?.corretora || '',
+      accounts,
+      account,
+      symbol,
+      days,
+      events: events.map((ev) => ({
+        kind: ev.kind,
+        ativo: ev.ativo,
+        brokerTime: ev.brokerTime,
+        brokerOffsetMin: ev.brokerOffsetMin,
+        profitUsd: ev.profitUsd,
+        floatUsd: ev.floatUsd,
+        floatMinUsd: ev.floatMinUsd,
+        floatMaxUsd: ev.floatMaxUsd,
+        closeReason: ev.closeReason,
+      })),
+    });
+  });
+
   /** Mesma lógica do EA/plugin: valida e-mail da conta + número da conta + system_id */
   app.post('/api/me/validate-license', async (req, res) => {
     const userId = resolveUserId(req);

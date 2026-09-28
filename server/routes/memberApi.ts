@@ -63,9 +63,18 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const email = user.email.toLowerCase();
-    const daysRaw = parseInt(String(req.query.days || '30'), 10);
-    const days = [7, 15, 30, 90].includes(daysRaw) ? daysRaw : 30;
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const retentionStart = new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000);
+    const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const requestedMonth = String(req.query.month || currentMonth);
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth) ? requestedMonth : currentMonth;
+    const [monthYear, monthNumber] = month.split('-').map(Number);
+    // Dois dias de margem permitem ao cliente recortar o mês no relógio da
+    // corretora ou em qualquer fuso IANA sem perder eventos nas bordas.
+    const monthStart = Date.UTC(monthYear, monthNumber - 1, 1);
+    const monthEnd = Date.UTC(monthYear, monthNumber, 1);
+    const queryFrom = new Date(Math.max(retentionStart.getTime(), monthStart - 2 * 24 * 60 * 60 * 1000));
+    const queryTo = new Date(Math.min(now.getTime() + 24 * 60 * 60 * 1000, monthEnd + 2 * 24 * 60 * 60 * 1000));
 
     const licenses = await prisma.license.findMany({
       where: { email, numeroConta: { not: '' } },
@@ -75,7 +84,7 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
 
     const grouped = await prisma.robotTelemetryEvent.groupBy({
       by: ['numeroConta', 'ativo'],
-      where: { email, occurredAt: { gte: since } },
+      where: { email, occurredAt: { gte: retentionStart } },
     });
 
     const accountMap = new Map<string, Set<string>>();
@@ -112,7 +121,8 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
         accounts: [],
         account: '',
         symbol: '',
-        days,
+        month,
+        retentionDays: 120,
         events: [],
       });
     }
@@ -121,7 +131,7 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
       where: {
         email,
         numeroConta: account,
-        occurredAt: { gte: since },
+        occurredAt: { gte: queryFrom, lte: queryTo },
         ...(symbol ? { ativo: symbol } : {}),
       },
       orderBy: { occurredAt: 'asc' },
@@ -150,7 +160,8 @@ export function registerMemberApiRoutes(app: express.Application, prisma: Prisma
       accounts,
       account,
       symbol,
-      days,
+      month,
+      retentionDays: 120,
       events: events.map((ev) => ({
         kind: ev.kind,
         ativo: ev.ativo,

@@ -1,6 +1,9 @@
 /** Converte o relógio da corretora para o fuso da pessoa, e o contrário. */
 
 export type ClockParts = {
+  year: number;
+  month: number;
+  day: number;
   hour: number;
   minute: number;
   dow: number;
@@ -78,6 +81,9 @@ export function brokerWallParts(brokerTime: string): ClockParts | null {
     Number(match[5])
   );
   return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
     hour: Number(match[4]),
     minute: Number(match[5]),
     dow: new Date(utc).getUTCDay(),
@@ -89,6 +95,9 @@ export function partsInTimeZone(utcMs: number, timeZone: string): ClockParts {
     timeZone,
     hourCycle: 'h23',
     weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -98,6 +107,9 @@ export function partsInTimeZone(utcMs: number, timeZone: string): ClockParts {
   }
   const hour = Number(map.hour);
   return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
     hour: hour === 24 ? 0 : hour,
     minute: Number(map.minute),
     dow: WEEKDAY_INDEX[map.weekday] ?? 0,
